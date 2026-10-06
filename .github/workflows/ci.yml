@@ -1,0 +1,92 @@
+# Plain GitHub Actions syntax, also understood by Forgejo and Gitea Actions:
+# only first-party actions (checkout, setup-go), pinned by commit SHA; every
+# other tool is installed by the repository's own scripts with pinned versions.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # renovate: datasource=github-releases depName=go-task/task
+  TASK_VERSION: 3.54.0
+
+jobs:
+  check:
+    name: Format, lint and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      - name: Install Task
+        run: go install "github.com/go-task/task/v3/cmd/task@v${TASK_VERSION}"
+      - run: task check
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Install Task
+        run: go install "github.com/go-task/task/v3/cmd/task@v${TASK_VERSION}"
+      - run: task test:integration
+
+  audit:
+    name: Vulnerabilities and secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # gitleaks scans the whole history
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      - name: Install Task
+        run: go install "github.com/go-task/task/v3/cmd/task@v${TASK_VERSION}"
+      - run: task audit
+
+  image:
+    name: Container image and stack smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Install Task
+        run: go install "github.com/go-task/task/v3/cmd/task@v${TASK_VERSION}"
+      - name: Build the image, then check its size, user and the stack's readiness
+        run: task smoke
+        env:
+          SMOKE_HOST_CURL: "1"
