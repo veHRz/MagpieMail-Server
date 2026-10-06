@@ -170,9 +170,9 @@ func TestHealthcheck_ReflectsReadiness(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			var probed string
+			probed := make(chan string, 1)
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				probed = r.URL.Path
+				probed <- r.URL.Path
 				w.WriteHeader(tt.status)
 			}))
 			t.Cleanup(srv.Close)
@@ -183,7 +183,7 @@ func TestHealthcheck_ReflectsReadiness(t *testing.T) {
 			got := run(t.Context(), []string{unreachableDB, "MAGPIE_SERVER__LISTEN=:" + port}, "healthcheck")
 
 			assert.Equal(t, tt.want, got.code, "stderr: %s", got.stderr)
-			assert.Equal(t, "/readyz", probed)
+			assert.Equal(t, "/readyz", <-probed)
 		})
 	}
 }
