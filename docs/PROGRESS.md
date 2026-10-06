@@ -6,7 +6,7 @@ recorded here.
 
 | Phase | Name | Depends on | Status | Branch |
 | --- | --- | --- | --- | --- |
-| S0 | Repository foundations | — | In review (CI proof pending) | `phase/S00-foundations` |
+| S0 | Repository foundations | — | Done, in review ([PR #1](https://github.com/veHRz/MagpieMail-Server/pull/1)) | `phase/S00-foundations` |
 | S1 | API contract and HTTP skeleton | S0 | Not started | |
 | S2 | Data model and storage | S0 | Not started | |
 | S3 | Authentication and multi-user | S1, S2 | Not started | |
@@ -34,7 +34,7 @@ Goal: an empty but complete repository, where `task check` and CI pass and
 
 ### Validation criteria
 
-- [ ] **`task check` passes locally and in CI.**
+- [x] **`task check` passes locally and in CI.**
   - Local: proven on 2026-10-06. `task check` exits 0. It runs:
     - `golangci-lint fmt --diff` and `go mod tidy -diff` (no diff);
     - `golangci-lint run` (`0 issues.`);
@@ -42,16 +42,18 @@ Goal: an empty but complete repository, where `task check` and CI pass and
     - `go test ./...`, with every package `ok`.
   - The unit tests also pass with `-race`: `go test -race -count=2 ./...` in
     `golang:1.27.1-trixie`. The development machine has no C compiler; CI has one.
-  - CI: pending. The workflow `.github/workflows/ci.yml` passes actionlint, but
-    has not run yet. This box gets ticked once the first GitHub Actions run of
-    this branch is green.
+  - CI: proven on 2026-10-06. [Run 37535963146](https://github.com/veHRz/MagpieMail-Server/actions/runs/37535963146)
+    of PR #1 is green on all four jobs. The `check` job runs `go test -race ./...`
+    (every package `ok`) after `0 issues.` from golangci-lint.
 - [x] **After `docker compose up`, `/readyz` answers 200 in less than 10 seconds.**
   - `task smoke` (`scripts/smoke.sh`) starts the compose stack on an empty
     database volume (so PostgreSQL's first-time initialization is included), with
     images already built and pulled.
   - It polls `/readyz` until the first 200:
     `PASS  /readyz answered 200 5461 ms after docker compose up (fresh volume)`.
-  - Five runs: 5384, 5348, 5431, 5405 and 5461 ms.
+  - Five runs on the development machine: 5384, 5348, 5431, 5405 and 5461 ms.
+  - In CI (run 37535963146): `/readyz answered 200 3165 ms`, and `curl` on the
+    published port `127.0.0.1:18080` got `{"status":"ok"}`.
   - Readiness tracks the database: `TestIntegration_ReadinessFollowsTheDatabase`
     runs `magpie serve` against PostgreSQL 18 (Testcontainers) and gets 200, then
     503 once the database is stopped.
