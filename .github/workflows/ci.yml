@@ -38,6 +38,8 @@ jobs:
       - name: Install Task
         run: go install "github.com/go-task/task/v3/cmd/task@v${TASK_VERSION}"
       - run: task check
+      - name: Build the publishable contract (offline HTML reference included)
+        run: task contract:build
 
   integration:
     name: Integration tests

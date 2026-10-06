@@ -1,0 +1,16 @@
+# Problems deliberately ignored by `redocly lint`. Keep this list short and
+# explain every entry.
+#
+# no-unused-components: shared building blocks that the plan requires in S1
+# (cursor pagination, event envelope, standard error responses) before any
+# operation uses them. Remove an entry as soon as an operation references it.
+api/openapi.yaml:
+  no-unused-components:
+    - '#/components/parameters/Cursor'
+    - '#/components/parameters/Limit'
+    - '#/components/schemas/CursorPage'
+    - '#/components/schemas/Event'
+    - '#/components/responses/BadRequest'
+    - '#/components/responses/Unauthorized'
+    - '#/components/responses/NotFound'
+    - '#/components/responses/PayloadTooLarge'

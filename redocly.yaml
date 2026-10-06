@@ -1,0 +1,119 @@
+# Redocly CLI configuration: lint rules of the API contract.
+# `task contract:lint` runs them; any problem, warning or error, fails the build.
+
+extends:
+  - recommended-strict
+
+rules:
+  # One domain tag per operation, declared in the top-level tag list: the client
+  # plan refers to the contract by tag.
+  operation-tag-defined: error
+  operation-singular-tag: error
+  no-unused-components: error
+  # Superseded by the precise rules below (429 under /api, 401 when secured,
+  # 400 with parameters or a body, 404 with path parameters); probes have no 4XX.
+  operation-4xx-response: off
+
+  rule/operation-has-tag:
+    subject:
+      type: Operation
+      property: tags
+    assertions:
+      defined: true
+      nonEmpty: true
+    message: Every operation needs a tag.
+
+  rule/media-type-has-example:
+    subject:
+      type: MediaType
+    assertions:
+      requireAny: [example, examples]
+    message: Every request and response body needs an example.
+
+  rule/operation-declares-500:
+    subject:
+      type: Responses
+    assertions:
+      required: ["500"]
+    message: Every operation declares its 500 (internal error) response.
+
+  # Versioned operations state their security explicitly (an empty list for
+  # public ones), so that the rules below can see it.
+  rule/api-operation-declares-security:
+    subject:
+      type: Operation
+      property: security
+    where:
+      - subject:
+          type: PathItem
+          matchParentKeys: /^\/api\//
+        assertions:
+          defined: true
+    assertions:
+      defined: true
+    message: Operations under /api state their security explicitly (use [] for public ones).
+
+  rule/api-operation-declares-429:
+    subject:
+      type: Responses
+    where:
+      - subject:
+          type: PathItem
+          matchParentKeys: /^\/api\//
+        assertions:
+          defined: true
+    assertions:
+      required: ["429"]
+    message: Operations under /api are rate limited and declare their 429 response.
+
+  rule/secured-operation-declares-401:
+    subject:
+      type: Responses
+    where:
+      - subject:
+          type: Operation
+          property: security
+        assertions:
+          nonEmpty: true
+    assertions:
+      required: ["401"]
+    message: Operations that require authentication declare their 401 response.
+
+  rule/operation-with-parameters-declares-400:
+    subject:
+      type: Responses
+    where:
+      - subject:
+          type: Operation
+          property: parameters
+        assertions:
+          defined: true
+    assertions:
+      required: ["400"]
+    message: Operations that take parameters declare their 400 response.
+
+  rule/operation-with-body-declares-400:
+    subject:
+      type: Responses
+    where:
+      - subject:
+          type: Operation
+          property: requestBody
+        assertions:
+          defined: true
+    assertions:
+      required: ["400", "413"]
+    message: Operations that take a body declare their 400 and 413 responses.
+
+  rule/path-with-parameters-declares-404:
+    subject:
+      type: Responses
+    where:
+      - subject:
+          type: PathItem
+          matchParentKeys: /\{/
+        assertions:
+          defined: true
+    assertions:
+      required: ["404"]
+    message: Operations on a path with parameters declare their 404 response.

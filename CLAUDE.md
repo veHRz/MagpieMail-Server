@@ -27,6 +27,8 @@ separate repo and only know this server through `api/openapi.yaml`.
 - `task check`            format, lint, unit tests
 - `task test:integration` integration tests (Docker required)
 - `task gen`              regenerate code from OpenAPI and SQL
+- `task contract:lint`    lint `api/openapi.yaml` (house rules in `redocly.yaml`)
+- `task contract:release` publish the contract (`api-vX.Y.Z` tag), from main only
 - `task dev`              run the full stack with docker compose
 - `task audit`            govulncheck and gitleaks
 - `task smoke`            build the image, check size, user and readiness time

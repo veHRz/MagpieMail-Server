@@ -1,0 +1,138 @@
+# Deliberately broken contract: each operation violates one house rule of
+# redocly.yaml. scripts/lint-contract.sh checks that every rule fires on it.
+openapi: 3.1.0
+info:
+  title: House rules fixture
+  version: 0.0.0
+  description: Not an API. Every operation below breaks exactly one house rule.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: /
+tags:
+  - name: fixture
+    description: Fixture operations.
+security:
+  - bearerAuth: []
+paths:
+  /no-tag:
+    get:
+      operationId: noTag
+      summary: Breaks rule/operation-has-tag
+      security: []
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "500": { $ref: "#/components/responses/Error" }
+  /no-example:
+    get:
+      operationId: noExample
+      tags: [fixture]
+      summary: Breaks rule/media-type-has-example
+      security: []
+      responses:
+        "200":
+          description: OK.
+          content:
+            application/json:
+              schema: { type: object }
+        "500": { $ref: "#/components/responses/Error" }
+  /no-500:
+    get:
+      operationId: no500
+      tags: [fixture]
+      summary: Breaks rule/operation-declares-500
+      security: []
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/implicit-security:
+    get:
+      operationId: implicitSecurity
+      tags: [fixture]
+      summary: Breaks rule/api-operation-declares-security
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+  /api/no-429:
+    get:
+      operationId: no429
+      tags: [fixture]
+      summary: Breaks rule/api-operation-declares-429
+      security: []
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "500": { $ref: "#/components/responses/Error" }
+  /secured-no-401:
+    get:
+      operationId: securedNo401
+      tags: [fixture]
+      summary: Breaks rule/secured-operation-declares-401
+      security:
+        - bearerAuth: []
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "403": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+  /parameters-no-400:
+    get:
+      operationId: parametersNo400
+      tags: [fixture]
+      summary: Breaks rule/operation-with-parameters-declares-400
+      security: []
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "500": { $ref: "#/components/responses/Error" }
+  /body-no-400:
+    post:
+      operationId: bodyNo400
+      tags: [fixture]
+      summary: Breaks rule/operation-with-body-declares-400
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+            example: {}
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "500": { $ref: "#/components/responses/Error" }
+  /items/{id}:
+    get:
+      operationId: pathParameterNo404
+      tags: [fixture]
+      summary: Breaks rule/path-with-parameters-declares-404
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "400": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  responses:
+    Ok:
+      description: OK.
+      content:
+        application/json:
+          schema: { type: object }
+          example: {}
+    Error:
+      description: Error.
+      content:
+        application/problem+json:
+          schema: { type: object }
+          example: {}

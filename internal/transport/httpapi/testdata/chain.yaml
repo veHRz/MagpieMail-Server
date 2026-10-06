@@ -1,0 +1,105 @@
+# Test-only contract. It describes operations the real contract does not have
+# yet (a parameter and a body, authentication, a failure), so that the shared
+# middleware chain can be tested end to end: the request validator and the
+# response checks of these tests read this file.
+openapi: 3.1.0
+info:
+  title: Middleware chain test
+  version: 0.0.0
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+paths:
+  /test/echo:
+    post:
+      operationId: echo
+      security: []
+      parameters:
+        - name: times
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 10}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: {type: string, maxLength: 100000}
+      responses:
+        "200":
+          description: The text, repeated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [text]
+                properties:
+                  text: {type: string}
+        "400": {$ref: "#/components/responses/Problem"}
+        "413": {$ref: "#/components/responses/Problem"}
+        "429": {$ref: "#/components/responses/Problem"}
+        "500": {$ref: "#/components/responses/Problem"}
+  /test/protected:
+    get:
+      operationId: protected
+      responses:
+        "200":
+          description: The caller.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [principal]
+                properties:
+                  principal: {type: string}
+        "401": {$ref: "#/components/responses/Problem"}
+        "429": {$ref: "#/components/responses/Problem"}
+        "500": {$ref: "#/components/responses/Problem"}
+  /test/cookie-only:
+    get:
+      operationId: cookieOnly
+      security:
+        - cookieAuth: []
+      responses:
+        "204": {description: Done.}
+        "401": {$ref: "#/components/responses/Problem"}
+        "429": {$ref: "#/components/responses/Problem"}
+        "500": {$ref: "#/components/responses/Problem"}
+  /test/panic:
+    get:
+      operationId: panics
+      security: []
+      responses:
+        "200": {description: Never sent.}
+        "429": {$ref: "#/components/responses/Problem"}
+        "500": {$ref: "#/components/responses/Problem"}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-magpie_session
+  responses:
+    Problem:
+      description: A problem.
+      headers:
+        Retry-After:
+          schema: {type: integer, minimum: 1}
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            required: [type, title, status, requestId]
+            properties:
+              type: {type: string}
+              title: {type: string}
+              status: {type: integer}
+              detail: {type: string}
+              requestId: {type: string}

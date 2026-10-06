@@ -63,6 +63,9 @@ func runServer(ctx context.Context, cfg config.Config, logger *slog.Logger) erro
 	}
 	logger.InfoContext(ctx, "http server listening", slog.String("addr", ln.Addr().String()))
 
-	router := httpapi.NewRouter(httpapi.Deps{Logger: logger, Database: pool})
+	router, err := httpapi.NewRouter(httpapi.Deps{Logger: logger, Database: pool, Config: cfg.Server})
+	if err != nil {
+		return err
+	}
 	return httpapi.Serve(ctx, ln, router, cfg.Server, logger)
 }

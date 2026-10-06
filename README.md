@@ -7,9 +7,10 @@ holds all the logic and all the data; clients only talk to its API, described
 by `api/openapi.yaml`. Nothing leaves the server except through a single,
 audited egress module.
 
-> **Status: early development.** Phase S0 (repository foundations) is done: the
-> server starts, loads and validates its configuration, and answers health
-> probes. Mail features arrive in the next phases; see [docs/PROGRESS.md](docs/PROGRESS.md).
+> **Status: early development.** Phases S0 (repository foundations) and S1 (API
+> contract and HTTP skeleton) are done: the server serves its published contract
+> (`GET /api/v1/info` and the health probes) behind a validated middleware chain.
+> Mail features arrive in the next phases; see [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Quick start
 
@@ -27,6 +28,14 @@ Without Task: copy `deploy/.env.example` to `deploy/.env`, set
 The API is published on `127.0.0.1` only. Put a TLS reverse proxy in front of it
 to reach it from other machines.
 
+## API
+
+The API is described by [api/openapi.yaml](api/openapi.yaml) (OpenAPI 3.1).
+Each published version is a GitHub release tagged `api-vX.Y.Z`, with the bundled
+contract and an HTML reference that works offline. Errors are RFC 9457 problems,
+requests are rate limited, and everything under `/api/v1` requires
+authentication unless the contract says otherwise.
+
 ## Configuration
 
 Settings come from built-in defaults, an optional YAML file (`--config` or
@@ -43,22 +52,26 @@ The single binary `magpie` provides:
 
 | Command | Purpose |
 | --- | --- |
-| `magpie serve` | Serve the HTTP API (`/healthz`, `/readyz` for now) |
+| `magpie serve` | Serve the HTTP API described by `api/openapi.yaml` |
 | `magpie worker` | Background jobs (phase S6) |
 | `magpie migrate` | Database schema (phase S2) |
 | `magpie admin` | Instance administration (phases S2 to S4) |
 
 ## Development
 
-Requirements: Go (see `go.mod`), Task, Docker, curl.
+Requirements: Go (see `go.mod`), Task, Docker (the contract linter and the
+integration tests run in containers), curl.
 
 | Task | What it does |
 | --- | --- |
-| `task check` | Format check, lint (code and CI workflows), unit tests |
+| `task check` | Format check, lint (code, CI workflows, API contract), generated code check, unit tests |
 | `task test:integration` | Unit and integration tests against real services (Testcontainers) |
 | `task audit` | Known vulnerabilities (govulncheck) and secrets in the git history (gitleaks) |
 | `task smoke` | Build the image, check its size and user, and the stack's readiness time |
-| `task gen` | Regenerate code from the OpenAPI contract and SQL (from phases S1 and S2) |
+| `task gen` | Regenerate the server code from the OpenAPI contract (`task gen:check` verifies it) |
+| `task contract:lint` | Lint the contract; part of `task check` |
+| `task contract:build` | Build the publishable contract into `dist/api` (bundle, offline HTML reference) |
+| `task contract:release` | Tag `main` as `api-vX.Y.Z`, which publishes the contract as a GitHub release |
 | `task fmt` | Format the code |
 | `task tools` | Install the pinned golangci-lint and gitleaks into `.bin/` |
 
@@ -69,7 +82,7 @@ branches with Conventional Commits. The plan is in [docs/plan/](docs/plan/)
 ## Layout
 
 ```text
-api/                 OpenAPI contract (from phase S1)
+api/                 OpenAPI contract, the source of truth shared with clients
 cmd/magpie/          the single binary
 internal/            server code; one doc.go per package states its role
   domain/            entities and business rules, no I/O

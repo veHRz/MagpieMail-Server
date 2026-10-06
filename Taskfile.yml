@@ -7,6 +7,8 @@ vars:
   GITLEAKS: "{{.BIN}}/gitleaks"
   # Go-module tools are pinned in tools/go.mod, apart from the server's dependencies.
   GOTOOL: go tool -modfile=tools/go.mod
+  OAPI_CONFIG: internal/transport/httpapi/oapi/oapi-codegen.yaml
+  OAPI_OUTPUT: internal/transport/httpapi/oapi/oapi.gen.go
   # The race detector needs cgo and a C compiler: enabled whenever one is available (always in CI).
   RACE:
     sh: command -v "${CC:-cc}" >/dev/null 2>&1 && echo "-race" || true
@@ -39,13 +41,15 @@ tasks:
       - "{{.GOLANGCI_LINT}} fmt ./..."
 
   lint:
-    desc: Check formatting, go.mod tidiness, lint Go code and CI workflows
+    desc: Check formatting, go.mod tidiness, generated code; lint Go code, CI workflows and the API contract
     deps: [tools]
     cmds:
       - "{{.GOLANGCI_LINT}} fmt --diff ./..."
       - go mod tidy -diff
       - "{{.GOLANGCI_LINT}} run ./..."
       - "{{.GOTOOL}} actionlint"
+      - task: gen:check
+      - task: contract:lint
 
   test:
     desc: Run unit tests
@@ -71,10 +75,35 @@ tasks:
       - "{{.GITLEAKS}} git --redact --no-banner ."
 
   gen:
-    desc: Regenerate code from the OpenAPI contract and SQL queries
+    desc: Regenerate code from the OpenAPI contract (and, from S2, from SQL)
     cmds:
-      - 'echo "Nothing to generate yet: the contract arrives in S1, SQL queries in S2."'
+      - "{{.GOTOOL}} oapi-codegen -config {{.OAPI_CONFIG}} api/openapi.yaml"
 
+  gen:check:
+    desc: Fail when the generated code does not match the contract
+    cmds:
+      - defer: rm -rf {{.TMPDIR}}
+      - 'sed "s|^output: .*|output: {{.TMPDIR}}/oapi.gen.go|" {{.OAPI_CONFIG}} > {{.TMPDIR}}/oapi-codegen.yaml'
+      - "{{.GOTOOL}} oapi-codegen -config {{.TMPDIR}}/oapi-codegen.yaml api/openapi.yaml"
+      - cmp -s {{.TMPDIR}}/oapi.gen.go {{.OAPI_OUTPUT}} || (echo "{{.OAPI_OUTPUT}} is stale; run 'task gen'" >&2; exit 1)
+    vars:
+      TMPDIR:
+        sh: mktemp -d
+
+  contract:lint:
+    desc: Lint the API contract (no problem allowed) and check the house rules still fire
+    cmds:
+      - ./scripts/lint-contract.sh
+
+  contract:build:
+    desc: Build the publishable contract into dist/api (bundle, version, offline HTML reference)
+    cmds:
+      - ./scripts/build-contract.sh
+
+  contract:release:
+    desc: Tag main as api-vX.Y.Z and push the tag, which publishes the contract (-- --dry-run to check)
+    cmds:
+      - ./scripts/release-contract.sh {{.CLI_ARGS}}
   build:
     desc: Build the magpie binary into bin/
     env:

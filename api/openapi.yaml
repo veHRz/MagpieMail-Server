@@ -1,0 +1,360 @@
+openapi: 3.1.0
+
+info:
+  title: MagpieMail API
+  version: 0.1.0
+  summary: Self-hosted, privacy-first mail aggregation server.
+  description: |
+    The public API of the MagpieMail server. Clients, SDKs, hooks and scripts
+    only know the server through this contract.
+
+    ## Conventions
+
+    - Versioned operations live under `/api/v1`. Within `/api/v1`, changes are
+      additive only; a breaking change opens `/api/v2`.
+    - Errors are RFC 9457 problem details (`application/problem+json`). Generic
+      HTTP errors use `type: about:blank`; the `title` is the HTTP status text.
+    - Every response carries an `X-Request-ID` header. Quote it when reporting a
+      problem: it is also the `requestId` member of problem details.
+    - Lists use cursor pagination: pass the `nextCursor` of a page as the
+      `cursor` parameter to get the next one; `nextCursor` is `null` on the last page.
+    - Identifiers are UUIDv7 strings. Dates are UTC, in RFC 3339 / ISO 8601 format.
+    - JSON members are camelCase.
+    - Requests are rate limited per client address and per user; a limited
+      request gets `429` with a `Retry-After` header.
+    - Unless an operation says otherwise, it requires authentication: a bearer
+      token (native clients, SDKs) or the session cookie (web client).
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: /
+    description: The MagpieMail server itself.
+
+tags:
+  - name: system
+    description: Information about the instance.
+  - name: health
+    description: Liveness and readiness probes for orchestrators. Outside `/api/v1`.
+
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+
+paths:
+  /api/v1/info:
+    get:
+      operationId: getInfo
+      tags: [system]
+      summary: Describe the instance
+      description: |
+        Returns the API version and the features enabled on this instance, so
+        that a client can check compatibility before signing in. It does not
+        reveal the server's exact build.
+      security: []
+      responses:
+        "200":
+          description: Instance information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Info"
+              example:
+                apiVersion: 0.1.0
+                features:
+                  ai: false
+                  documents: false
+                  webPush: false
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /healthz:
+    get:
+      operationId: getLiveness
+      tags: [health]
+      summary: Liveness probe
+      description: |
+        Answers 200 as long as the process serves HTTP. It checks no dependency,
+        so that an orchestrator never restarts the server because the database
+        is down. Not rate limited.
+      security: []
+      responses:
+        "200":
+          $ref: "#/components/responses/HealthOK"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /readyz:
+    get:
+      operationId: getReadiness
+      tags: [health]
+      summary: Readiness probe
+      description: |
+        Answers 200 when the server can do useful work: the database answers
+        within 2 seconds. Not rate limited.
+      security: []
+      responses:
+        "200":
+          $ref: "#/components/responses/HealthOK"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: |
+        An opaque access token, for native clients, SDKs and hooks. Personal API
+        tokens use the same header.
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-magpie_session
+      description: |
+        The session cookie of the web client (`HttpOnly; Secure; SameSite=Strict`).
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      description: The `nextCursor` of the previous page. Omit it to get the first page.
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 512
+      example: eyJrIjoiMDE5MmYzYTQifQ
+    Limit:
+      name: limit
+      in: query
+      description: Maximum number of items in the page.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+      example: 50
+
+  headers:
+    RetryAfter:
+      description: Seconds to wait before retrying.
+      schema:
+        type: integer
+        minimum: 1
+      example: 2
+
+  schemas:
+    Problem:
+      type: object
+      description: |
+        RFC 9457 problem details. Clients identify a problem by `type`. More
+        members may be added: clients must ignore members they do not know.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: Identifies the problem type. `about:blank` for generic HTTP errors.
+          example: about:blank
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+          example: Not Found
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+          description: HTTP status code.
+          example: 404
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+          example: No resource exists at this address.
+        instance:
+          type: string
+          format: uri-reference
+          description: Identifies this occurrence of the problem.
+        requestId:
+          type: string
+          description: ID of the request, as in the `X-Request-ID` response header.
+          example: 0192f3a4-5b6c-7d8e-9f00-112233445566
+
+    Info:
+      type: object
+      required: [apiVersion, features]
+      properties:
+        apiVersion:
+          type: string
+          description: Version of this API contract (semantic versioning).
+          pattern: ^\d+\.\d+\.\d+$
+          example: 0.1.0
+        features:
+          $ref: "#/components/schemas/Features"
+
+    Features:
+      type: object
+      description: |
+        Optional features and whether they are enabled on this instance. New
+        features are added as new members; clients must ignore unknown members.
+      required: [ai, documents, webPush]
+      properties:
+        ai:
+          type: boolean
+          description: AI features (summaries, classification).
+        documents:
+          type: boolean
+          description: Document Mode (text extraction and OCR of attachments).
+        webPush:
+          type: boolean
+          description: Notifications through the browser's push service.
+
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+
+    CursorPage:
+      type: object
+      description: |
+        Members shared by every paginated list. A list schema combines it with
+        its own `items` array through `allOf`.
+      required: [nextCursor]
+      properties:
+        nextCursor:
+          type: [string, "null"]
+          description: Cursor of the next page, or `null` on the last page.
+          example: eyJrIjoiMDE5MmYzYTQifQ
+
+    Event:
+      type: object
+      description: |
+        Envelope of every real-time event sent on the `/api/v1/events` WebSocket.
+        The catalogue of types and payloads arrives with the `events` tag.
+      required: [id, type, occurredAt, data]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Event ID (UUIDv7). Used to resume after a disconnection.
+          example: 0192f3a4-5b6c-7d8e-9f00-112233445566
+        type:
+          type: string
+          description: Dotted event type.
+          pattern: ^[a-z]+(\.[a-z]+)+$
+          example: message.received
+        occurredAt:
+          type: string
+          format: date-time
+          description: When the event happened (UTC).
+          example: "2026-10-07T08:30:00Z"
+        data:
+          type: object
+          description: Type-specific payload.
+
+  responses:
+    HealthOK:
+      description: The probe succeeded.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/HealthStatus"
+          example:
+            status: ok
+    BadRequest:
+      description: The request is malformed or does not match the contract.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Bad Request
+            status: 400
+            detail: 'query parameter "limit": number must be at most 200'
+            requestId: 0192f3a4-5b6c-7d8e-9f00-112233445566
+    Unauthorized:
+      description: Authentication is missing or invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Unauthorized
+            status: 401
+            detail: Authentication is required.
+            requestId: 0192f3a4-5b6c-7d8e-9f00-112233445566
+    NotFound:
+      description: The resource does not exist, or is not visible to the caller.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Not Found
+            status: 404
+            detail: No resource exists at this address.
+            requestId: 0192f3a4-5b6c-7d8e-9f00-112233445566
+    PayloadTooLarge:
+      description: The request body exceeds the size limit.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Request Entity Too Large
+            status: 413
+            detail: The request body exceeds 1048576 bytes.
+            requestId: 0192f3a4-5b6c-7d8e-9f00-112233445566
+    TooManyRequests:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Too Many Requests
+            status: 429
+            detail: Rate limit exceeded; retry later.
+            requestId: 0192f3a4-5b6c-7d8e-9f00-112233445566
+    InternalError:
+      description: An unexpected error occurred. Details are in the server logs only.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Internal Server Error
+            status: 500
+            detail: An unexpected error occurred.
+            requestId: 0192f3a4-5b6c-7d8e-9f00-112233445566
+    ServiceUnavailable:
+      description: A dependency is unavailable.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: about:blank
+            title: Service Unavailable
+            status: 503
+            detail: The database is not reachable.
+            requestId: 0192f3a4-5b6c-7d8e-9f00-112233445566

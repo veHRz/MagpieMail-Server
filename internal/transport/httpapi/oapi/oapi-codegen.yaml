@@ -1,0 +1,9 @@
+# oapi-codegen configuration. Run `task gen` after changing api/openapi.yaml;
+# CI fails when the generated code is stale.
+package: oapi
+output: internal/transport/httpapi/oapi/oapi.gen.go
+generate:
+  models: true
+  chi-server: true
+  strict-server: true
+  embedded-spec: true

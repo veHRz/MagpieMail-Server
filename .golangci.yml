@@ -132,5 +132,7 @@ linters:
           - forbidigo
       - path: _test\.go
         linters:
+          # httptest recorders return in-memory bodies: closing them frees nothing.
+          - bodyclose
           - forbidigo
           - gosec

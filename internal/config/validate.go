@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
@@ -30,6 +31,16 @@ func (c Config) validate(found *problems, origins map[string]string) {
 	check("server.write_timeout", checkPositive(c.Server.WriteTimeout))
 	check("server.idle_timeout", checkPositive(c.Server.IdleTimeout))
 	check("server.shutdown_timeout", checkPositive(c.Server.ShutdownTimeout))
+	check("server.max_body_bytes", checkPositive(c.Server.MaxBodyBytes))
+	check("server.trusted_proxies", checkEach(c.Server.TrustedProxies, checkAddressOrPrefix))
+	check("server.hsts_max_age", checkNotNegative(c.Server.HSTSMaxAge))
+	check("server.cors.allowed_origins", checkEach(c.Server.CORS.AllowedOrigins, checkOrigin))
+	if c.Server.RateLimit.Enabled {
+		check("server.rate_limit.per_ip.rate", checkPositive(c.Server.RateLimit.PerIP.Rate))
+		check("server.rate_limit.per_ip.burst", checkAtLeastOne(c.Server.RateLimit.PerIP.Burst))
+		check("server.rate_limit.per_user.rate", checkPositive(c.Server.RateLimit.PerUser.Rate))
+		check("server.rate_limit.per_user.burst", checkAtLeastOne(c.Server.RateLimit.PerUser.Burst))
+	}
 	check("log.level", checkOneOf(c.Log.Level, logLevels))
 	check("log.format", checkOneOf(c.Log.Format, logFormats))
 	check("database.url", checkPostgresURL(c.Database.URL.Reveal()))
@@ -49,9 +60,54 @@ func checkListen(addr string) string {
 	return ""
 }
 
-func checkPositive(d time.Duration) string {
-	if d <= 0 {
+func checkPositive[N time.Duration | int64 | float64](n N) string {
+	if n <= 0 {
 		return "must be greater than zero"
+	}
+	return ""
+}
+
+func checkNotNegative(d time.Duration) string {
+	if d < 0 {
+		return "must be zero or more"
+	}
+	return ""
+}
+
+func checkAtLeastOne(n int) string {
+	if n < 1 {
+		return "must be at least 1"
+	}
+	return ""
+}
+
+// checkEach applies check to every item and reports the first invalid one.
+func checkEach(items []string, check func(string) string) string {
+	for _, item := range items {
+		if message := check(item); message != "" {
+			return message
+		}
+	}
+	return ""
+}
+
+func checkAddressOrPrefix(s string) string {
+	if _, err := netip.ParsePrefix(s); err == nil {
+		return ""
+	}
+	if _, err := netip.ParseAddr(s); err == nil {
+		return ""
+	}
+	return fmt.Sprintf(`must list IP addresses or CIDR prefixes such as "10.0.0.0/8", got %q`, s)
+}
+
+// checkOrigin accepts a browser origin. A wildcard is refused: the API allows
+// credentials, which browsers never send to a wildcard origin.
+func checkOrigin(s string) string {
+	u, err := url.Parse(s)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" ||
+		u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+		return fmt.Sprintf("must list origins as scheme://host[:port], got %q", s)
 	}
 	return ""
 }

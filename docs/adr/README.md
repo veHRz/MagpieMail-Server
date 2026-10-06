@@ -27,3 +27,9 @@ new ADR supersedes them.
 | [0020](0020-health-probes.md) | Health probes outside the versioned API | Accepted |
 | [0021](0021-container-image-and-compose.md) | Distroless non-root image and a locked-down compose stack | Accepted |
 | [0022](0022-developer-tooling.md) | Developer tooling and quality gates | Accepted |
+| [0023](0023-contract-tooling.md) | Contract tooling: Redocly for linting and publishing, oapi-codegen for the server | Accepted |
+| [0024](0024-request-pipeline.md) | One middleware chain, validated against the contract, for every request | Accepted |
+| [0025](0025-rate-limiting.md) | In-memory token-bucket rate limiting per address and per user | Accepted |
+| [0026](0026-authentication-hook-and-security-schemes.md) | Security schemes, secure by default, and the authentication hook | Accepted |
+| [0027](0027-contract-publication.md) | Publish the contract as GitHub releases on api-v* tags | Accepted |
+| [0028](0028-public-instance-information.md) | Public instance information without the server build | Accepted |
