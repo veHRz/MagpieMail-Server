@@ -6,8 +6,8 @@ recorded here.
 
 | Phase | Name | Depends on | Status | Branch |
 | --- | --- | --- | --- | --- |
-| S0 | Repository foundations | — | Done, in review ([PR #1](https://github.com/veHRz/MagpieMail-Server/pull/1)) | `phase/S00-foundations` |
-| S1 | API contract and HTTP skeleton | S0 | Not started | |
+| S0 | Repository foundations | — | Done ([PR #1](https://github.com/veHRz/MagpieMail-Server/pull/1)) | `phase/S00-foundations` |
+| S1 | API contract and HTTP skeleton | S0 | In progress | `phase/S01-api-contract` |
 | S2 | Data model and storage | S0 | Not started | |
 | S3 | Authentication and multi-user | S1, S2 | Not started | |
 | S4 | Administration and policies | S3 | Not started | |
@@ -117,3 +117,100 @@ Goal: an empty but complete repository, where `task check` and CI pass and
 | Subcommands `serve`, `worker`, `migrate`, `admin` | Plus a hidden `healthcheck` | The distroless image has no shell nor curl for `HEALTHCHECK` ([ADR 0017](adr/0017-command-line.md)) |
 | Contract first | `/healthz` and `/readyz` before the contract | They are ops probes outside `/api/v1`; S1 adds them to the contract under a `health` tag ([ADR 0020](adr/0020-health-probes.md)) |
 | — | Renovate config added | Required by the overview's shared rules, not listed in S0 tasks |
+
+## S1 — API contract and HTTP skeleton
+
+Goal: the OpenAPI contract exists and is checked in CI, and every request goes
+through a common chain (errors, limits, security) ready to receive the domains.
+
+### Validation criteria
+
+- [x] **The contract lint passes without any warning.**
+  - `task contract:lint` (`scripts/lint-contract.sh`):
+    `Woohoo! Your API description is valid. 🎉`.
+  - `redocly.yaml` extends `recommended-strict`, where every finding is an error,
+    so a warning would fail the build.
+  - 8 findings are explicitly ignored in `.redocly.lint-ignore.yaml`, all
+    `no-unused-components`: shared building blocks that the plan requires in S1
+    (pagination, event envelope, standard error responses) and that no operation
+    uses yet.
+  - The 9 house rules are proven to fire: `house rules: all 9 rules fire on the
+    broken fixture`.
+- [x] **A test checks that every served route exists in the contract.**
+  - `TestRouter_ServesExactlyTheContract` walks the production router: every
+    served route is in the contract, and every contract operation is served.
+  - `TestContract_IsAValidOpenAPIDocument` validates the embedded contract.
+  - Every response of the HTTP tests is validated against the contract by
+    `contracttest.Serve`. `TestCheck_RejectsNonConformingResponses` proves that
+    an undeclared status, content type or body shape fails.
+- [x] **400, 401, 404, 413, 429 and 500 responses are all `application/problem+json` (tests).**
+  - Each test below checks the content type, `type`, `title`, `status` and
+    `requestId`, and validates the response against the contract.
+  - On the production router: `TestProblem_404_UnknownRoute`,
+    `TestProblem_405_WrongMethod` (also checks `Allow`),
+    `TestProblem_429_RateLimitedWithRetryAfter`, and the `production router` case
+    of `TestProblem_413_BodyTooLarge`.
+  - On test operations mounted on the same middleware chain
+    (`internal/transport/httpapi/testdata/chain.yaml`), because the real contract
+    has no operation with input or authentication yet:
+    - `TestProblem_400_InvalidParameter`, `TestProblem_400_InvalidBody` (3 cases);
+    - `TestProblem_401_MissingOrInvalidCredentials`, which also checks
+      `WWW-Authenticate`, and `TestAuthentication_*`;
+    - `TestProblem_413_BodyTooLarge`, with a declared length and with a streamed
+      body;
+    - `TestProblem_500_PanicIsRecovered`.
+- [x] **Exceeding the rate limit returns 429 with a `Retry-After` header.**
+  - `TestProblem_429_RateLimitedWithRetryAfter`: 2 requests pass, the 3rd gets
+    429 with `Retry-After: 2` (one token every 2 seconds).
+  - Also tested:
+    - `TestRateLimit_EachClientAddressHasItsOwnBucket`;
+    - `TestRateLimit_PerUserAcrossAddresses`;
+    - `TestRateLimit_ProbesAreExempt`;
+    - `TestRateLimit_TrustedProxyRevealsTheClientAddress`;
+    - `TestRateLimit_UntrustedForwardedForIsIgnored`.
+- [ ] **CI run of this phase** (`task check` now includes the contract lint and
+  `gen:check`): pending. Checked once the pull request's run is green.
+
+### Also verified
+
+- `task check` exits 0. It runs formatting, `go mod tidy`, golangci-lint
+  (`0 issues.`), actionlint, `gen:check`, the contract lint and the unit tests.
+- `go test -race -count=2 ./...` (in `golang:1.27.1-trixie`): every package `ok`.
+- `task test:integration`: every package `ok`.
+- `task gen:check`:
+  - passes on the committed code;
+  - fails with `oapi.gen.go is stale; run 'task gen'` after a contract change
+    without regeneration;
+  - never modifies the repository.
+- `task smoke`:
+  - image of 20 MB (20,406,751 bytes), uid 65532;
+  - `/readyz` answers 200 5413 ms after `docker compose up`.
+- `task contract:build` builds `openapi.yaml`, `VERSION`, `api-reference.tar.gz`
+  and `SHA256SUMS`. The HTML reference references no external resource; the
+  script checks it.
+- `scripts/release-contract.sh --dry-run` refuses to run outside `main`.
+- The real binary:
+  - `GET /api/v1/info` returns `{"apiVersion":"0.1.0","features":{"ai":false,"documents":false,"webPush":false}}`;
+  - an unknown path returns a 404 problem;
+  - `DELETE /api/v1/info` returns 405 with `Allow: GET`.
+
+### Deliverables
+
+- Contract v0.1.0 (`api/openapi.yaml`), lint configuration and house rules.
+- Generated server (`internal/transport/httpapi/oapi`), `task gen` and `task gen:check`.
+- Middlewares:
+  - panic recovery, security headers, CORS;
+  - rate limits per address and per user;
+  - body limit;
+  - authentication hook;
+  - contract validation;
+  - RFC 9457 problems.
+- API documentation: offline HTML reference built by `task contract:build` and
+  published with each release.
+- Reusable publication: `task contract:release` and `.github/workflows/contract.yml`.
+- ADRs 0023 to 0028.
+
+### Remaining after merge
+
+- Tag `api-v0.1.0`: created on `main` after this phase is merged
+  (`task contract:release`). The tag triggers the release workflow (ADR 0027).
