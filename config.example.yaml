@@ -1,0 +1,42 @@
+# MagpieMail server configuration (example).
+#
+# Copy this file, adjust it, and point the server at it:
+#   magpie serve --config /etc/magpie/config.yaml      (or MAGPIE_CONFIG=/etc/magpie/config.yaml)
+#
+# Every setting can also be set, and overridden, by an environment variable:
+# MAGPIE_ + the key in upper case, with "__" between levels. For example
+# server.read_timeout is MAGPIE_SERVER__READ_TIMEOUT.
+#
+# Precedence, lowest to highest: built-in defaults, this file, environment.
+# Loading is strict: an unknown key, or an unknown MAGPIE_* variable, stops the
+# server with a message naming it. The values below are the defaults, except
+# database.url, which has none.
+#
+# Durations need a unit: "500ms", "30s", "2m", "1h".
+
+server:
+  # TCP address the HTTP API listens on, as host:port. ":8080" listens on all
+  # interfaces; put a TLS reverse proxy in front of it.
+  listen: ":8080"
+  # Maximum time to read request headers (slowloris protection).
+  read_header_timeout: 5s
+  # Maximum time to read a whole request, body included.
+  read_timeout: 30s
+  # Maximum time to write a response.
+  write_timeout: 30s
+  # How long an idle keep-alive connection stays open.
+  idle_timeout: 120s
+  # On SIGTERM or SIGINT, how long in-flight requests may still run.
+  shutdown_timeout: 15s
+
+log:
+  # debug, info, warn or error.
+  level: info
+  # json (one object per line, for log collectors) or text (for humans).
+  format: json
+
+database:
+  # PostgreSQL connection URL. Required.
+  # It contains a password: prefer the MAGPIE_DATABASE__URL environment variable
+  # over this file, and never commit a real value.
+  url: "postgres://magpie:change-me@localhost:5432/magpie?sslmode=disable"

@@ -1,0 +1,136 @@
+version: "2"
+
+run:
+  timeout: 5m
+  # Lint integration tests too.
+  build-tags:
+    - integration
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      extra:
+        group-params: true
+    goimports:
+      local-prefixes:
+        - github.com/veHRz/MagpieMail-Server
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - depguard
+    - errname
+    - errorlint
+    - forbidigo
+    - gocritic
+    - gosec
+    - misspell
+    - noctx
+    - nolintlint
+    - revive
+    - sloglint
+    - testifylint
+    - unconvert
+    - usestdlibvars
+    - whitespace
+
+  settings:
+    depguard:
+      rules:
+        # Applies to every file.
+        everywhere:
+          deny:
+            - pkg: "math/rand$"
+              desc: use crypto/rand, or math/rand/v2 when the randomness is not security sensitive
+            - pkg: "io/ioutil"
+              desc: deprecated, use io and os
+            - pkg: "log$"
+              desc: use log/slog
+            - pkg: "github.com/dlclark/regexp2"
+              desc: regexes must use Go regexp (RE2, linear time), see CLAUDE.md
+        # internal/domain holds entities and business rules only: no I/O.
+        domain-has-no-io:
+          files:
+            - "**/internal/domain/**"
+          deny:
+            - pkg: "database/sql"
+              desc: internal/domain has no I/O dependencies
+            - pkg: "github.com/jackc/pgx"
+              desc: internal/domain has no I/O dependencies
+            - pkg: "net$"
+              desc: internal/domain has no I/O dependencies
+            - pkg: "net/http"
+              desc: internal/domain has no I/O dependencies
+            - pkg: "net/smtp"
+              desc: internal/domain has no I/O dependencies
+            - pkg: "os$"
+              desc: internal/domain has no I/O dependencies
+            - pkg: "os/exec"
+              desc: internal/domain has no I/O dependencies
+            - pkg: "syscall"
+              desc: internal/domain has no I/O dependencies
+            - pkg: "github.com/emersion/go-imap"
+              desc: internal/domain has no I/O dependencies
+            - pkg: "github.com/emersion/go-smtp"
+              desc: internal/domain has no I/O dependencies
+
+    forbidigo:
+      analyze-types: true
+      forbid:
+        # All outbound network traffic goes through internal/egress (excluded below).
+        - pattern: '^http\.(Get|Head|Post|PostForm|DefaultClient|DefaultTransport|Client|Transport)$'
+          msg: outbound HTTP must go through internal/egress
+        - pattern: '^net\.(Dial|DialTimeout|DialTCP|DialUDP|DialIP|DialUnix|Dialer)$'
+          msg: outbound connections must go through internal/egress
+        - pattern: '^tls\.(Dial|DialWithDialer|Dialer)$'
+          msg: outbound connections must go through internal/egress
+        - pattern: '^fmt\.Print(f|ln)?$'
+          msg: write to an explicit io.Writer, or log with log/slog
+
+    gosec:
+      excludes:
+        # Integer overflow conversions: too noisy for the value of the check.
+        - G115
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: indent-error-flow
+        - name: errorf
+        - name: error-strings
+        - name: error-naming
+        - name: receiver-naming
+        - name: unexported-return
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: unused-parameter
+        - name: redefines-builtin-id
+
+    sloglint:
+      no-mixed-args: true
+      static-msg: true
+      key-naming-case: snake
+      context: scope
+
+  exclusions:
+    presets:
+      - std-error-handling
+      - common-false-positives
+    rules:
+      - path: internal/egress/
+        linters:
+          - forbidigo
+      - path: _test\.go
+        linters:
+          - forbidigo
+          - gosec

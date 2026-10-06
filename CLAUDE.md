@@ -28,6 +28,8 @@ separate repo and only know this server through `api/openapi.yaml`.
 - `task test:integration` integration tests (Docker required)
 - `task gen`              regenerate code from OpenAPI and SQL
 - `task dev`              run the full stack with docker compose
+- `task audit`            govulncheck and gitleaks
+- `task smoke`            build the image, check size, user and readiness time
 
 ## Architecture rules
 - `internal/domain` has no I/O dependencies.
@@ -35,6 +37,8 @@ separate repo and only know this server through `api/openapi.yaml`.
 - Never log message content, tokens or passwords.
 - User-supplied regexes: Go `regexp` (RE2) only, with size limits.
 - Secrets are encrypted at rest with the server master key.
+- Package names never shadow the standard library (`internal/mailsync`,
+  `internal/transport/httpapi`; see ADR 0018).
 
 ## Conventions
 Conventional Commits; branches `phase/SNN-short-name`; gofumpt and

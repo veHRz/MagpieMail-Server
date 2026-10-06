@@ -1,0 +1,50 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits"
+  ],
+  "labels": ["dependencies"],
+  "postUpdateOptions": ["gomodTidy"],
+  "packageRules": [
+    {
+      "description": "Group non-major Go module updates",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "Go modules"
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Keep the compose stack and the integration tests on the same PostgreSQL",
+      "matchPackageNames": ["postgres"],
+      "groupName": "PostgreSQL"
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Pinned tool versions in scripts and workflows, marked with a renovate comment",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts/install-tools\\.sh$/",
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+[A-Z_]+(=|: )\"?(?<currentValue>[^\"\\s]+)\"?"
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "description": "PostgreSQL image of the integration tests",
+      "customType": "regex",
+      "managerFilePatterns": ["/^internal/testsupport/pgtest/pgtest\\.go$/"],
+      "matchStrings": ["const Image = \"(?<depName>postgres):(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "docker"
+    }
+  ]
+}
