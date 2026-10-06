@@ -56,6 +56,37 @@ type ServerConfig struct {
 	IdleTimeout       time.Duration `koanf:"idle_timeout"`
 	// ShutdownTimeout bounds how long in-flight requests may run after a stop signal.
 	ShutdownTimeout time.Duration `koanf:"shutdown_timeout"`
+	// MaxBodyBytes is the largest request body accepted, in bytes.
+	MaxBodyBytes int64 `koanf:"max_body_bytes"`
+	// TrustedProxies lists the reverse proxies (IP addresses or CIDR prefixes)
+	// whose X-Forwarded-For header is believed when finding the client address.
+	TrustedProxies []string `koanf:"trusted_proxies"`
+	// HSTSMaxAge enables Strict-Transport-Security when positive.
+	HSTSMaxAge time.Duration   `koanf:"hsts_max_age"`
+	CORS       CORSConfig      `koanf:"cors"`
+	RateLimit  RateLimitConfig `koanf:"rate_limit"`
+}
+
+// CORSConfig configures cross-origin requests from browsers.
+type CORSConfig struct {
+	// AllowedOrigins lists the origins (scheme://host[:port]) allowed to call
+	// the API with credentials. Empty disables CORS.
+	AllowedOrigins []string `koanf:"allowed_origins"`
+}
+
+// RateLimitConfig configures request rate limiting.
+type RateLimitConfig struct {
+	Enabled bool `koanf:"enabled"`
+	// PerIP limits each client address.
+	PerIP LimitConfig `koanf:"per_ip"`
+	// PerUser limits each authenticated user, across addresses.
+	PerUser LimitConfig `koanf:"per_user"`
+}
+
+// LimitConfig is a token bucket: Rate tokens per second, up to Burst.
+type LimitConfig struct {
+	Rate  float64 `koanf:"rate"`
+	Burst int     `koanf:"burst"`
 }
 
 // LogConfig configures structured logging.
@@ -80,14 +111,23 @@ type Source struct {
 
 func defaults() map[string]any {
 	return map[string]any{
-		"server.listen":              ":8080",
-		"server.read_header_timeout": "5s",
-		"server.read_timeout":        "30s",
-		"server.write_timeout":       "30s",
-		"server.idle_timeout":        "120s",
-		"server.shutdown_timeout":    "15s",
-		"log.level":                  "info",
-		"log.format":                 "json",
+		"server.listen":                    ":8080",
+		"server.read_header_timeout":       "5s",
+		"server.read_timeout":              "30s",
+		"server.write_timeout":             "30s",
+		"server.idle_timeout":              "120s",
+		"server.shutdown_timeout":          "15s",
+		"server.max_body_bytes":            1 << 20,
+		"server.trusted_proxies":           []string{},
+		"server.hsts_max_age":              "0s",
+		"server.cors.allowed_origins":      []string{},
+		"server.rate_limit.enabled":        true,
+		"server.rate_limit.per_ip.rate":    50,
+		"server.rate_limit.per_ip.burst":   200,
+		"server.rate_limit.per_user.rate":  25,
+		"server.rate_limit.per_user.burst": 100,
+		"log.level":                        "info",
+		"log.format":                       "json",
 	}
 }
 
@@ -125,7 +165,7 @@ func Load(src Source) (Config, error) {
 	var cfg Config
 	err := k.UnmarshalWithConf("", &cfg, koanf.UnmarshalConf{
 		DecoderConfig: &mapstructure.DecoderConfig{
-			DecodeHook:       durationHook,
+			DecodeHook:       mapstructure.ComposeDecodeHookFunc(durationHook, listHook),
 			WeaklyTypedInput: true,
 		},
 	})
@@ -207,6 +247,21 @@ func durationHook(_, to reflect.Type, data any) (any, error) {
 	return d, nil
 }
 
+// listHook reads a string list from a comma-separated value, as environment
+// variables provide it. Spaces around items are trimmed; empty items dropped.
+func listHook(from, to reflect.Type, data any) (any, error) {
+	if from.Kind() != reflect.String || to != reflect.TypeFor[[]string]() {
+		return data, nil
+	}
+	items := []string{}
+	for item := range strings.SplitSeq(reflect.ValueOf(data).String(), ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			items = append(items, item)
+		}
+	}
+	return items, nil
+}
+
 // decodeProblems turns mapstructure errors into messages keyed by setting.
 // Messages for secret settings never include the underlying error, which may
 // quote the value.
@@ -285,6 +340,15 @@ func (c Config) LogValue() slog.Value {
 			slog.String("write_timeout", c.Server.WriteTimeout.String()),
 			slog.String("idle_timeout", c.Server.IdleTimeout.String()),
 			slog.String("shutdown_timeout", c.Server.ShutdownTimeout.String()),
+			slog.Int64("max_body_bytes", c.Server.MaxBodyBytes),
+			slog.Any("trusted_proxies", c.Server.TrustedProxies),
+			slog.String("hsts_max_age", c.Server.HSTSMaxAge.String()),
+			slog.Group("cors", slog.Any("allowed_origins", c.Server.CORS.AllowedOrigins)),
+			slog.Group("rate_limit",
+				slog.Bool("enabled", c.Server.RateLimit.Enabled),
+				slog.Group("per_ip", slog.Float64("rate", c.Server.RateLimit.PerIP.Rate), slog.Int("burst", c.Server.RateLimit.PerIP.Burst)),
+				slog.Group("per_user", slog.Float64("rate", c.Server.RateLimit.PerUser.Rate), slog.Int("burst", c.Server.RateLimit.PerUser.Burst)),
+			),
 		),
 		slog.Group("log",
 			slog.String("level", c.Log.Level),

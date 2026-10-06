@@ -39,6 +39,15 @@ func TestLoad_AppliesDefaults(t *testing.T) {
 	assert.Equal(t, 30*time.Second, cfg.Server.WriteTimeout)
 	assert.Equal(t, 120*time.Second, cfg.Server.IdleTimeout)
 	assert.Equal(t, 15*time.Second, cfg.Server.ShutdownTimeout)
+	assert.Equal(t, int64(1<<20), cfg.Server.MaxBodyBytes)
+	assert.Empty(t, cfg.Server.TrustedProxies)
+	assert.Zero(t, cfg.Server.HSTSMaxAge)
+	assert.Empty(t, cfg.Server.CORS.AllowedOrigins)
+	assert.True(t, cfg.Server.RateLimit.Enabled)
+	assert.InDelta(t, 50.0, cfg.Server.RateLimit.PerIP.Rate, 0)
+	assert.Equal(t, 200, cfg.Server.RateLimit.PerIP.Burst)
+	assert.InDelta(t, 25.0, cfg.Server.RateLimit.PerUser.Rate, 0)
+	assert.Equal(t, 100, cfg.Server.RateLimit.PerUser.Burst)
 	assert.Equal(t, "info", cfg.Log.Level)
 	assert.Equal(t, "json", cfg.Log.Format)
 	assert.Equal(t, validDBURL, cfg.Database.URL.Reveal())
@@ -174,6 +183,42 @@ func TestLoad_InvalidConfigurationNamesTheKey(t *testing.T) {
 			environ:  []string{"MAGPIE_DATABASE__URL=mysql://magpie:secret@db/magpie"},
 			contains: []string{"database.url", "PostgreSQL"},
 		},
+		{
+			name:     "non-positive body limit",
+			environ:  []string{dbURL, "MAGPIE_SERVER__MAX_BODY_BYTES=0"},
+			contains: []string{"server.max_body_bytes", "greater than zero"},
+		},
+		{
+			name:     "invalid trusted proxy",
+			environ:  []string{dbURL, "MAGPIE_SERVER__TRUSTED_PROXIES=10.0.0.0/8,not-an-ip"},
+			contains: []string{"server.trusted_proxies", `"not-an-ip"`},
+		},
+		{
+			name:     "wildcard CORS origin",
+			file:     "server:\n  cors:\n    allowed_origins: [\"*\"]\n",
+			environ:  []string{dbURL},
+			contains: []string{"server.cors.allowed_origins", `"*"`},
+		},
+		{
+			name:     "CORS origin with a path",
+			environ:  []string{dbURL, "MAGPIE_SERVER__CORS__ALLOWED_ORIGINS=https://mail.example.com/app"},
+			contains: []string{"server.cors.allowed_origins", "scheme://host[:port]"},
+		},
+		{
+			name:     "non-positive rate",
+			environ:  []string{dbURL, "MAGPIE_SERVER__RATE_LIMIT__PER_IP__RATE=0"},
+			contains: []string{"server.rate_limit.per_ip.rate", "greater than zero"},
+		},
+		{
+			name:     "burst below one",
+			environ:  []string{dbURL, "MAGPIE_SERVER__RATE_LIMIT__PER_USER__BURST=0"},
+			contains: []string{"server.rate_limit.per_user.burst", "at least 1"},
+		},
+		{
+			name:     "negative HSTS max age",
+			environ:  []string{dbURL, "MAGPIE_SERVER__HSTS_MAX_AGE=-1s"},
+			contains: []string{"server.hsts_max_age", "zero or more"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -260,4 +305,36 @@ func TestConfig_LogValueKeepsUsefulFields(t *testing.T) {
 	assert.Contains(t, logged.String(), `"listen":":8080"`)
 	assert.Contains(t, logged.String(), "db.internal:5432", "the database host is useful and not secret")
 	assert.NotContains(t, logged.String(), testPassword)
+}
+
+func TestLoad_ListsFromFileAndEnvironment(t *testing.T) {
+	path := writeFile(t, `
+server:
+  trusted_proxies: ["10.0.0.0/8", "192.168.1.10"]
+  cors:
+    allowed_origins: ["https://mail.example.com"]
+`)
+
+	cfg, err := config.Load(config.Source{File: path, Environ: []string{"MAGPIE_DATABASE__URL=" + validDBURL}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"10.0.0.0/8", "192.168.1.10"}, cfg.Server.TrustedProxies)
+	assert.Equal(t, []string{"https://mail.example.com"}, cfg.Server.CORS.AllowedOrigins)
+
+	cfg, err = config.Load(config.Source{File: path, Environ: []string{
+		"MAGPIE_DATABASE__URL=" + validDBURL,
+		"MAGPIE_SERVER__TRUSTED_PROXIES=172.16.0.0/12, fd00::/8",
+		"MAGPIE_SERVER__RATE_LIMIT__ENABLED=false",
+	}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"172.16.0.0/12", "fd00::/8"}, cfg.Server.TrustedProxies, "comma-separated, spaces trimmed")
+	assert.False(t, cfg.Server.RateLimit.Enabled)
+}
+
+func TestLoad_DisabledRateLimitSkipsItsValidation(t *testing.T) {
+	_, err := config.Load(config.Source{Environ: []string{
+		"MAGPIE_DATABASE__URL=" + validDBURL,
+		"MAGPIE_SERVER__RATE_LIMIT__ENABLED=false",
+		"MAGPIE_SERVER__RATE_LIMIT__PER_IP__RATE=0",
+	}})
+	require.NoError(t, err)
 }

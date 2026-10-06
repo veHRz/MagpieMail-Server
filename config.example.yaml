@@ -28,6 +28,34 @@ server:
   idle_timeout: 120s
   # On SIGTERM or SIGINT, how long in-flight requests may still run.
   shutdown_timeout: 15s
+  # Largest request body accepted, in bytes; larger requests get 413.
+  max_body_bytes: 1048576
+  # Reverse proxies (IP addresses or CIDR prefixes) whose X-Forwarded-For header
+  # is trusted to find the client address, used by rate limiting. Leave empty
+  # when clients connect directly. Environment: comma-separated.
+  trusted_proxies: []
+  # Strict-Transport-Security max-age, e.g. "8760h" (one year). 0s disables the
+  # header: usually the TLS reverse proxy sets it.
+  hsts_max_age: 0s
+
+  cors:
+    # Browser origins (scheme://host[:port]) allowed to call the API with
+    # credentials, e.g. ["https://mail.example.com"]. Empty disables CORS: serve
+    # the web client from the same origin as the API. No wildcard.
+    allowed_origins: []
+
+  rate_limit:
+    # Token buckets: "rate" requests per second on average, bursts up to "burst".
+    # Exceeding requests get 429 with a Retry-After header. Probes are exempt.
+    enabled: true
+    # Per client address (see trusted_proxies).
+    per_ip:
+      rate: 50
+      burst: 200
+    # Per authenticated user, across all their addresses and devices.
+    per_user:
+      rate: 25
+      burst: 100
 
 log:
   # debug, info, warn or error.
