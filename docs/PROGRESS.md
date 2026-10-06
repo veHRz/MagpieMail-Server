@@ -7,7 +7,7 @@ recorded here.
 | Phase | Name | Depends on | Status | Branch |
 | --- | --- | --- | --- | --- |
 | S0 | Repository foundations | — | Done ([PR #1](https://github.com/veHRz/MagpieMail-Server/pull/1)) | `phase/S00-foundations` |
-| S1 | API contract and HTTP skeleton | S0 | In progress | `phase/S01-api-contract` |
+| S1 | API contract and HTTP skeleton | S0 | Done, in review ([PR #5](https://github.com/veHRz/MagpieMail-Server/pull/5)) | `phase/S01-api-contract` |
 | S2 | Data model and storage | S0 | Not started | |
 | S3 | Authentication and multi-user | S1, S2 | Not started | |
 | S4 | Administration and policies | S3 | Not started | |
@@ -168,8 +168,10 @@ through a common chain (errors, limits, security) ready to receive the domains.
     - `TestRateLimit_ProbesAreExempt`;
     - `TestRateLimit_TrustedProxyRevealsTheClientAddress`;
     - `TestRateLimit_UntrustedForwardedForIsIgnored`.
-- [ ] **CI run of this phase** (`task check` now includes the contract lint and
-  `gen:check`): pending. Checked once the pull request's run is green.
+- [x] **CI run of this phase.** [Run 37541033842](https://github.com/veHRz/MagpieMail-Server/actions/runs/37541033842)
+  of PR #5 is green on all four jobs. The `check` job (`0 issues.`, contract valid,
+  `house rules: all 9 rules fire on the broken fixture`, `go test -race ./...`)
+  also builds the contract. The `image` job reports `/readyz answered 200 3041 ms`.
 
 ### Also verified
 
