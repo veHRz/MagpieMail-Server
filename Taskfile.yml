@@ -1,0 +1,114 @@
+# https://taskfile.dev
+version: "3"
+
+vars:
+  BIN: "{{.ROOT_DIR}}/.bin"
+  GOLANGCI_LINT: "{{.BIN}}/golangci-lint"
+  GITLEAKS: "{{.BIN}}/gitleaks"
+  # Go-module tools are pinned in tools/go.mod, apart from the server's dependencies.
+  GOTOOL: go tool -modfile=tools/go.mod
+  # The race detector needs cgo and a C compiler: enabled whenever one is available (always in CI).
+  RACE:
+    sh: command -v "${CC:-cc}" >/dev/null 2>&1 && echo "-race" || true
+  IMAGE: '{{.IMAGE | default "magpiemail-server:dev"}}'
+  COMPOSE: docker compose -f deploy/docker-compose.yml
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
+  LDFLAGS: >-
+    -s -w
+    -X github.com/veHRz/MagpieMail-Server/internal/buildinfo.Version={{.VERSION}}
+    -X github.com/veHRz/MagpieMail-Server/internal/buildinfo.Commit={{.COMMIT}}
+
+tasks:
+  default:
+    silent: true
+    cmds:
+      - task --list
+
+  tools:
+    desc: Install the pinned golangci-lint and gitleaks into .bin
+    cmds:
+      - ./scripts/install-tools.sh
+
+  fmt:
+    desc: Format Go code (gofumpt, goimports)
+    deps: [tools]
+    cmds:
+      - "{{.GOLANGCI_LINT}} fmt ./..."
+
+  lint:
+    desc: Check formatting, go.mod tidiness, lint Go code and CI workflows
+    deps: [tools]
+    cmds:
+      - "{{.GOLANGCI_LINT}} fmt --diff ./..."
+      - go mod tidy -diff
+      - "{{.GOLANGCI_LINT}} run ./..."
+      - "{{.GOTOOL}} actionlint"
+
+  test:
+    desc: Run unit tests
+    cmds:
+      - go test {{.RACE}} ./...
+
+  test:integration:
+    desc: Run unit and integration tests against real services in containers (Docker required)
+    cmds:
+      - go test {{.RACE}} -tags=integration -count=1 ./...
+
+  check:
+    desc: Format check, lint and unit tests
+    cmds:
+      - task: lint
+      - task: test
+
+  audit:
+    desc: Scan dependencies for known vulnerabilities and the git history for secrets
+    deps: [tools]
+    cmds:
+      - "{{.GOTOOL}} govulncheck ./..."
+      - "{{.GITLEAKS}} git --redact --no-banner ."
+
+  gen:
+    desc: Regenerate code from the OpenAPI contract and SQL queries
+    cmds:
+      - 'echo "Nothing to generate yet: the contract arrives in S1, SQL queries in S2."'
+
+  build:
+    desc: Build the magpie binary into bin/
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/magpie ./cmd/magpie
+
+  image:
+    desc: Build the container image (IMAGE=name:tag to override)
+    cmds:
+      - docker build --build-arg VERSION={{.VERSION}} --build-arg COMMIT={{.COMMIT}} -t {{.IMAGE}} .
+
+  smoke:
+    desc: Check the image (size, user, invalid config) and the stack (/readyz within 10 s)
+    deps: [image]
+    cmds:
+      - ./scripts/smoke.sh {{.IMAGE}}
+
+  dev:env:
+    desc: Create deploy/.env with a random database password, if missing
+    status:
+      - test -f deploy/.env
+    cmds:
+      - cp deploy/.env.example deploy/.env
+      - sed -i.bak "s/^MAGPIEMAIL_DB_PASSWORD=.*/MAGPIEMAIL_DB_PASSWORD=$(openssl rand -hex 24)/" deploy/.env && rm deploy/.env.bak
+      - chmod 600 deploy/.env
+
+  dev:
+    desc: Run the full stack with docker compose (server and PostgreSQL)
+    deps: [dev:env]
+    cmds:
+      - "{{.COMPOSE}} up --build {{.CLI_ARGS}}"
+
+  dev:down:
+    desc: Stop the stack (task dev:down -- -v also deletes the database volume)
+    cmds:
+      - "{{.COMPOSE}} down {{.CLI_ARGS}}"

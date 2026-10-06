@@ -1,0 +1,19 @@
+# Build output and project-local tools
+/bin/
+/.bin/
+/dist/
+
+# Local configuration and secrets
+/config.yaml
+/deploy/.env
+*.local.yaml
+
+# Test and coverage artefacts
+*.out
+coverage.*
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
