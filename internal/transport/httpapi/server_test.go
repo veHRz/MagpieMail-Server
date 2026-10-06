@@ -12,19 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/veHRz/MagpieMail-Server/internal/config"
 	"github.com/veHRz/MagpieMail-Server/internal/transport/httpapi"
 )
-
-func serverConfig() config.ServerConfig {
-	return config.ServerConfig{
-		ReadHeaderTimeout: time.Second,
-		ReadTimeout:       5 * time.Second,
-		WriteTimeout:      5 * time.Second,
-		IdleTimeout:       5 * time.Second,
-		ShutdownTimeout:   5 * time.Second,
-	}
-}
 
 // startServer runs Serve in the background and returns its base URL, a function
 // that stops it, and a channel that receives Serve's result.
