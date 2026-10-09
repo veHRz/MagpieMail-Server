@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 
 # Base images are pinned by digest; Renovate keeps tags and digests up to date.
-FROM --platform=$BUILDPLATFORM golang:1.27.1-trixie@sha256:8f58fd67ea075142d947a60e0caa4317746a55118d312f027793d382c7741734 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.2-trixie@sha256:e58d6f83b3416618d8bcac2b3dde1b7f7e3c4a77d25e88637f8bbae81536c48d AS build
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -10,6 +10,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY cmd/ cmd/
 COPY internal/ internal/
+COPY migrations/ migrations/
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -22,7 +23,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -ldflags "-s -w \
         -X github.com/veHRz/MagpieMail-Server/internal/buildinfo.Version=${VERSION} \
         -X github.com/veHRz/MagpieMail-Server/internal/buildinfo.Commit=${COMMIT}" \
-      -o /out/magpie ./cmd/magpie
+      -o /out/magpie ./cmd/magpie \
+    && mkdir -p /out/var/lib/magpie/blobs
 
 # Static, shell-less runtime image. "nonroot" is uid/gid 65532.
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
@@ -35,6 +37,9 @@ LABEL org.opencontainers.image.title="MagpieMail server" \
       org.opencontainers.image.version="${VERSION}"
 
 COPY --from=build /out/magpie /usr/local/bin/magpie
+# The blob store directory belongs to the server user, so that a volume mounted
+# there inherits that ownership.
+COPY --from=build --chown=65532:65532 /out/var/lib/magpie /var/lib/magpie
 
 # Numeric ids let orchestrators verify runAsNonRoot.
 USER 65532:65532

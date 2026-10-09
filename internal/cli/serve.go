@@ -34,6 +34,9 @@ func serve(ctx context.Context, opts *options) error {
 	if err != nil {
 		return err
 	}
+	if _, err := cfg.Security.Keyring(); err != nil {
+		return err
+	}
 	logger, err := observability.NewLogger(opts.stderr, cfg.Log.Level, cfg.Log.Format)
 	if err != nil {
 		return err

@@ -44,6 +44,8 @@ type Config struct {
 	Server   ServerConfig   `koanf:"server"`
 	Log      LogConfig      `koanf:"log"`
 	Database DatabaseConfig `koanf:"database"`
+	Security SecurityConfig `koanf:"security"`
+	Storage  StorageConfig  `koanf:"storage"`
 }
 
 // ServerConfig configures the HTTP server.
@@ -95,6 +97,28 @@ type LogConfig struct {
 	Format string `koanf:"format"`
 }
 
+// SecurityConfig holds the server master key, which wraps every user's keys.
+type SecurityConfig struct {
+	// MasterKey is the current master key: 32 bytes, base64.
+	MasterKey Secret `koanf:"master_key"`
+	// MasterKeyFile reads the master key from a file instead, such as a Docker
+	// secret. Set MasterKey or MasterKeyFile, not both.
+	MasterKeyFile string `koanf:"master_key_file"`
+	// PreviousMasterKeys still unwrap user keys during a rotation.
+	PreviousMasterKeys []Secret `koanf:"previous_master_keys"`
+}
+
+// StorageConfig configures blob storage (raw messages, attachments, documents).
+type StorageConfig struct {
+	// Path is the directory of the local disk store.
+	Path string `koanf:"path"`
+	// EncryptBlobs encrypts blob contents with their owner's data key.
+	EncryptBlobs bool `koanf:"encrypt_blobs"`
+	// PurgeGrace is how long an unreferenced blob is kept before purging, so
+	// that a blob being written and not yet referenced is never purged.
+	PurgeGrace time.Duration `koanf:"purge_grace"`
+}
+
 // DatabaseConfig configures the PostgreSQL connection.
 type DatabaseConfig struct {
 	// URL is a PostgreSQL connection URL. It usually embeds a password.
@@ -126,6 +150,12 @@ func defaults() map[string]any {
 		"server.rate_limit.per_ip.burst":   200,
 		"server.rate_limit.per_user.rate":  25,
 		"server.rate_limit.per_user.burst": 100,
+		"security.master_key":              "",
+		"security.master_key_file":         "",
+		"security.previous_master_keys":    []string{},
+		"storage.path":                     "/var/lib/magpie/blobs",
+		"storage.encrypt_blobs":            true,
+		"storage.purge_grace":              "1h",
 		"log.level":                        "info",
 		"log.format":                       "json",
 	}
@@ -173,6 +203,7 @@ func Load(src Source) (Config, error) {
 		found.add(key, origins[key], message)
 	}
 
+	cfg.Security.readKeyFile(&found, origins)
 	cfg.validate(&found, origins)
 
 	if err := found.err(); err != nil {
@@ -250,7 +281,7 @@ func durationHook(_, to reflect.Type, data any) (any, error) {
 // listHook reads a string list from a comma-separated value, as environment
 // variables provide it. Spaces around items are trimmed; empty items dropped.
 func listHook(from, to reflect.Type, data any) (any, error) {
-	if from.Kind() != reflect.String || to != reflect.TypeFor[[]string]() {
+	if from.Kind() != reflect.String || to.Kind() != reflect.Slice || to.Elem().Kind() != reflect.String {
 		return data, nil
 	}
 	items := []string{}
@@ -277,7 +308,7 @@ func decodeProblems(err error, schema schema) map[string]string {
 			switch {
 			case errors.Is(de, errNotDuration):
 				out[key] = errNotDuration.Error()
-			case schema.leaves[key] == reflect.TypeFor[Secret]():
+			case schema.leaves[key] == reflect.TypeFor[Secret]() || schema.leaves[key] == reflect.TypeFor[[]Secret]():
 				out[key] = "has an invalid value"
 			default:
 				out[key] = "has an invalid value: " + de.Unwrap().Error()
@@ -353,6 +384,16 @@ func (c Config) LogValue() slog.Value {
 		slog.Group("log",
 			slog.String("level", c.Log.Level),
 			slog.String("format", c.Log.Format),
+		),
+		slog.Group("security",
+			slog.Bool("master_key_set", c.Security.MasterKey != ""),
+			slog.String("master_key_file", c.Security.MasterKeyFile),
+			slog.Int("previous_master_keys", len(c.Security.PreviousMasterKeys)),
+		),
+		slog.Group("storage",
+			slog.String("path", c.Storage.Path),
+			slog.Bool("encrypt_blobs", c.Storage.EncryptBlobs),
+			slog.String("purge_grace", c.Storage.PurgeGrace.String()),
 		),
 		slog.Group("database",
 			slog.String("url", redactURL(c.Database.URL.Reveal())),

@@ -15,7 +15,8 @@ vars:
   IMAGE: '{{.IMAGE | default "magpiemail-server:dev"}}'
   COMPOSE: docker compose -f deploy/docker-compose.yml
   VERSION:
-    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+    # Server releases are tagged vX.Y.Z; api-vX.Y.Z tags version the contract only.
+    sh: git describe --tags --match "v[0-9]*" --always --dirty 2>/dev/null || echo dev
   COMMIT:
     sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
   LDFLAGS: >-
@@ -61,6 +62,14 @@ tasks:
     cmds:
       - go test {{.RACE}} -tags=integration -count=1 ./...
 
+  test:coverage:
+    desc: Measure the repositories' coverage with the integration tests; fail below {{.MIN_COVERAGE}} %
+    vars:
+      MIN_COVERAGE: 80
+    cmds:
+      - go test -tags=integration -count=1 -coverpkg=./internal/store/postgres -coverprofile=coverage.out ./internal/store/...
+      - ./scripts/check-coverage.sh coverage.out {{.MIN_COVERAGE}}
+
   check:
     desc: Format check, lint and unit tests
     cmds:
@@ -75,17 +84,19 @@ tasks:
       - "{{.GITLEAKS}} git --redact --no-banner ."
 
   gen:
-    desc: Regenerate code from the OpenAPI contract (and, from S2, from SQL)
+    desc: Regenerate code from the OpenAPI contract and the SQL queries
     cmds:
       - "{{.GOTOOL}} oapi-codegen -config {{.OAPI_CONFIG}} api/openapi.yaml"
+      - ./scripts/sqlc.sh generate
 
   gen:check:
-    desc: Fail when the generated code does not match the contract
+    desc: Fail when the generated code does not match the contract or the SQL queries
     cmds:
       - defer: rm -rf {{.TMPDIR}}
       - 'sed "s|^output: .*|output: {{.TMPDIR}}/oapi.gen.go|" {{.OAPI_CONFIG}} > {{.TMPDIR}}/oapi-codegen.yaml'
       - "{{.GOTOOL}} oapi-codegen -config {{.TMPDIR}}/oapi-codegen.yaml api/openapi.yaml"
       - cmp -s {{.TMPDIR}}/oapi.gen.go {{.OAPI_OUTPUT}} || (echo "{{.OAPI_OUTPUT}} is stale; run 'task gen'" >&2; exit 1)
+      - ./scripts/sqlc.sh diff || (echo "internal/store/postgres/gen is stale, or sqlc could not run (see above); run 'task gen'" >&2; exit 1)
     vars:
       TMPDIR:
         sh: mktemp -d
@@ -123,13 +134,31 @@ tasks:
       - ./scripts/smoke.sh {{.IMAGE}}
 
   dev:env:
-    desc: Create deploy/.env with a random database password, if missing
+    desc: Create deploy/.env (database password) and deploy/secrets/master.key, if missing
+    cmds:
+      - task: dev:env:file
+      - task: dev:env:key
+
+  dev:env:file:
+    internal: true
     status:
       - test -f deploy/.env
     cmds:
       - cp deploy/.env.example deploy/.env
       - sed -i.bak "s/^MAGPIEMAIL_DB_PASSWORD=.*/MAGPIEMAIL_DB_PASSWORD=$(openssl rand -hex 24)/" deploy/.env && rm deploy/.env.bak
       - chmod 600 deploy/.env
+
+  dev:env:key:
+    internal: true
+    status:
+      - test -f deploy/secrets/master.key
+    cmds:
+      # The directory is private; the file is world-readable so that the
+      # container's non-root user can read the bind-mounted secret.
+      - mkdir -p deploy/secrets && chmod 700 deploy/secrets
+      - openssl rand -base64 32 > deploy/secrets/master.key
+      - chmod 444 deploy/secrets/master.key
+      - 'echo "Generated deploy/secrets/master.key: back it up outside this machine."'
 
   dev:
     desc: Run the full stack with docker compose (server and PostgreSQL)

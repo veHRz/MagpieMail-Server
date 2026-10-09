@@ -7,8 +7,8 @@ recorded here.
 | Phase | Name | Depends on | Status | Branch |
 | --- | --- | --- | --- | --- |
 | S0 | Repository foundations | — | Done ([PR #1](https://github.com/veHRz/MagpieMail-Server/pull/1)) | `phase/S00-foundations` |
-| S1 | API contract and HTTP skeleton | S0 | Done, in review ([PR #5](https://github.com/veHRz/MagpieMail-Server/pull/5)) | `phase/S01-api-contract` |
-| S2 | Data model and storage | S0 | Not started | |
+| S1 | API contract and HTTP skeleton | S0 | Done ([PR #5](https://github.com/veHRz/MagpieMail-Server/pull/5)), contract [api-v0.1.0](https://github.com/veHRz/MagpieMail-Server/releases/tag/api-v0.1.0) | `phase/S01-api-contract` |
+| S2 | Data model and storage | S0 | Done, in review ([PR #8](https://github.com/veHRz/MagpieMail-Server/pull/8)) | `phase/S02-data-storage` |
 | S3 | Authentication and multi-user | S1, S2 | Not started | |
 | S4 | Administration and policies | S3 | Not started | |
 | S5 | Accounts and providers | S4 | Not started | |
@@ -212,7 +212,111 @@ through a common chain (errors, limits, security) ready to receive the domains.
 - Reusable publication: `task contract:release` and `.github/workflows/contract.yml`.
 - ADRs 0023 to 0028.
 
-### Remaining after merge
+### Publication
 
-- Tag `api-v0.1.0`: created on `main` after this phase is merged
-  (`task contract:release`). The tag triggers the release workflow (ADR 0027).
+- [Release api-v0.1.0](https://github.com/veHRz/MagpieMail-Server/releases/tag/api-v0.1.0),
+  published by `task contract:release` on `main` after the merge. Its 4 assets
+  were downloaded and checked: `sha256sum -c SHA256SUMS` OK, `VERSION` is
+  `0.1.0`, `openapi.yaml` is identical to a local bundle, and the HTML reference
+  loads no external resource.
+
+## S2 — Data model and storage
+
+Goal: all MVP data has a migratable schema, files have deduplicated storage,
+and secrets are encrypted at rest; all of it tested on a real PostgreSQL.
+
+### Validation criteria
+
+- [x] **Every migration goes up and down on an empty database (integration test).**
+  - `TestIntegration_MigrationsGoUpAndDownOnAnEmptyDatabase`, on PostgreSQL 18:
+    1. it applies every migration, and the 22 MVP tables exist;
+    2. it rolls every migration back, leaving only `goose_db_version`;
+    3. it applies them again.
+  - `TestIntegration_MigrateUpStatusDown` drives the same cycle through `magpie migrate`.
+- [x] **Repositories are covered above 80 % by tests on real PostgreSQL.**
+  - `task test:coverage`: `repositories coverage: 88.3 % (minimum 80 %)`.
+  - CI enforces it with the integration tests.
+- [x] **Writing the same file twice creates one blob; an orphan blob disappears at the purge.**
+  - `TestIntegration_SameContentTwiceIsStoredOnce`: two writes return one blob
+    record, and exactly one object exists on disk.
+  - `TestIntegration_OrphanBlobDisappearsAtPurge`: within the grace period
+    nothing is purged; past it, the orphan's record and object are gone, and the
+    referenced blob stays.
+  - Also `TestIntegration_ReleasedBlobIsPurged`.
+- [x] **No secret is readable in clear text in the raw columns (test).**
+  - `TestIntegration_NoSecretIsReadableInRawColumns` stores account credentials
+    through the repository, then searches every column of every table for the
+    secret, as text and as hex bytes: 0 hits.
+  - Also tested:
+    - `TestIntegration_CiphertextMovedToAnotherAccountDoesNotOpen`;
+    - `TestIntegration_EncryptedBlobsAreUnreadableOnDisk`;
+    - `TestConfig_NeverPrintsMasterKeys`;
+    - `TestLoad_InvalidSecuritySettingsNeverRevealKeys`.
+- [x] **Master key rotation re-encrypts everything without loss (test).**
+  - `TestIntegration_MasterKeyRotationLosesNothing`:
+    - 5 users with encrypted credentials;
+    - a rotation to a new key rewraps 5 user keys;
+    - with only the new key, every secret reads back identical;
+    - the old key alone opens nothing.
+  - Also tested:
+    - `TestIntegration_RotationRefusesKeysItCannotOpen`, where a failed rotation
+      changes nothing;
+    - `TestIntegration_RotateKeyCommand`: `magpie admin rotate-key` end to end,
+      audit event included.
+
+### Also verified
+
+- `task check` exits 0. It includes `gen:check`, which now also runs
+  `sqlc diff`; it fails on a query changed without `task gen`.
+- `task test:integration`: every package `ok`.
+- `go test -race -count=2 ./...` (in the pinned `golang` image): every package `ok`.
+- `task audit`: `No vulnerabilities found.`, `no leaks found` on 26 commits.
+  - On the first run, govulncheck reported 9 vulnerabilities of the Go 1.27.1
+    standard library: the project moved to Go 1.27.2.
+  - gitleaks flagged two deliberately invalid test keys: the test now builds
+    them at run time, and the findings are recorded in `.gitleaksignore`.
+- `task smoke`:
+  - image of 21 MB, uid 65532;
+  - `/readyz` answers 200 6086 ms after `docker compose up`, the one-shot
+    migration included;
+  - the server reads its master key from a Docker secret file.
+- A fresh `blobs` volume is owned by `65532:65532`.
+
+- CI: [run 37994909038](https://github.com/veHRz/MagpieMail-Server/actions/runs/37994909038)
+  of PR #8 is green on all four jobs:
+  - `0 issues.`, `house rules: all 9 rules fire on the broken fixture`,
+    `go test -race ./...`;
+  - `repositories coverage: 88.3 % (minimum 80 %)`;
+  - `/readyz answered 200 3650 ms`, and the published port answers;
+  - `No vulnerabilities found.`, `no leaks found`.
+- The first runs failed on Docker Hub: the anonymous pull quota was exhausted,
+  then a Docker Hub partial outage. CI now logs in to Docker Hub with repository
+  secrets (`Login Succeeded` in the 3 jobs that pull images) and falls back to
+  anonymous pulls when they are absent.
+
+### Deliverables
+
+- Migrations (`migrations/`) and `magpie migrate up|down|status`.
+- Repositories (`internal/store/postgres`) over sqlc-generated queries:
+  - users;
+  - user keys;
+  - providers;
+  - accounts;
+  - blob records;
+  - audit log.
+- Blob storage:
+  - `internal/store/blobstore`: the interface, the local disk backend and the
+    conformance suite;
+  - `internal/store/blobs`: deduplication, encryption and purge.
+- Encryption module (`internal/security/envelope`), `magpie admin generate-key`
+  and `magpie admin rotate-key`.
+- ADRs 0029 to 0032.
+
+### Deviations from the plan
+
+| Plan | Done | Why |
+| --- | --- | --- |
+| A repository per aggregate | Schema complete; repositories for users, keys, providers, accounts, blobs and audit log | The others are written with their phase, once their queries are known ([ADR 0029](adr/0029-data-model-conventions.md)) |
+| SHA-256 deduplication | Per-user deduplication on keyed HMAC-SHA256 fingerprints | No cross-user confirmation of files, compatible with per-user encryption ([ADR 0030](adr/0030-blob-storage-dedup-and-encryption.md)) |
+| S3-compatible storage | Interface and conformance suite only | Needs outbound traffic through `internal/egress`, which does not exist yet ([ADR 0030](adr/0030-blob-storage-dedup-and-encryption.md)) |
+| Master key rotation re-encrypts everything | Every user key is rewrapped with the new master key; data keys do not change | Envelope encryption: fast, atomic, no downtime ([ADR 0031](adr/0031-master-key-and-rotation.md)) |

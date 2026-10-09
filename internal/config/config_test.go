@@ -338,3 +338,11 @@ func TestLoad_DisabledRateLimitSkipsItsValidation(t *testing.T) {
 	}})
 	require.NoError(t, err)
 }
+
+// logged returns the JSON log record of cfg.
+func logged(t *testing.T, cfg config.Config) string {
+	t.Helper()
+	var out bytes.Buffer
+	slog.New(slog.NewJSONHandler(&out, nil)).Info("config loaded", "config", cfg)
+	return out.String()
+}

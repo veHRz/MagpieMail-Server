@@ -83,7 +83,7 @@ func TestRun_UnknownCommandFails(t *testing.T) {
 }
 
 func TestRun_PlaceholderCommandsAreNotImplemented(t *testing.T) {
-	for _, sub := range []string{"worker", "migrate", "admin"} {
+	for _, sub := range []string{"worker"} {
 		t.Run(sub, func(t *testing.T) {
 			got := run(t.Context(), nil, sub)
 
@@ -132,7 +132,7 @@ func TestServe_StartsWithoutTheDatabaseAndStopsCleanly(t *testing.T) {
 	ctx, stop := context.WithCancel(t.Context())
 	results := make(chan result, 1)
 	go func() {
-		results <- run(ctx, []string{unreachableDB, "MAGPIE_SERVER__LISTEN=" + addr}, "serve")
+		results <- run(ctx, []string{unreachableDB, masterKeyEnv(), "MAGPIE_SERVER__LISTEN=" + addr}, "serve")
 	}()
 
 	var healthz int

@@ -26,6 +26,7 @@ separate repo and only know this server through `api/openapi.yaml`.
 ## Commands
 - `task check`            format, lint, unit tests
 - `task test:integration` integration tests (Docker required)
+- `task test:coverage`    repositories coverage, fails below 80 %
 - `task gen`              regenerate code from OpenAPI and SQL
 - `task contract:lint`    lint `api/openapi.yaml` (house rules in `redocly.yaml`)
 - `task contract:release` publish the contract (`api-vX.Y.Z` tag), from main only

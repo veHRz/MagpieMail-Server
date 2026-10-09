@@ -3,7 +3,7 @@
 // Run them with: go tool -modfile=tools/go.mod <name>
 module github.com/veHRz/MagpieMail-Server/tools
 
-go 1.27.1
+go 1.27.2
 
 tool (
 	github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen

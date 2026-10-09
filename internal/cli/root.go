@@ -69,8 +69,8 @@ func newRootCommand(opts *options) *cobra.Command {
 	root.AddCommand(
 		newServeCommand(opts),
 		placeholder("worker", "Run background jobs"),
-		placeholder("migrate", "Manage the database schema"),
-		placeholder("admin", "Administer the instance"),
+		newMigrateCommand(opts),
+		newAdminCommand(opts),
 		newHealthcheckCommand(opts),
 	)
 	return root

@@ -33,3 +33,7 @@ new ADR supersedes them.
 | [0026](0026-authentication-hook-and-security-schemes.md) | Security schemes, secure by default, and the authentication hook | Accepted |
 | [0027](0027-contract-publication.md) | Publish the contract as GitHub releases on api-v* tags | Accepted |
 | [0028](0028-public-instance-information.md) | Public instance information without the server build | Accepted |
+| [0029](0029-data-model-conventions.md) | Data model conventions and per-user isolation in the schema | Accepted |
+| [0030](0030-blob-storage-dedup-and-encryption.md) | Blob storage: per-user deduplication, keyed fingerprints, encryption | Accepted |
+| [0031](0031-master-key-and-rotation.md) | Master key supply, per-user root keys and rotation | Accepted |
+| [0032](0032-migrations-and-sql-tooling.md) | Migrations with goose, typed queries with sqlc, both from the binary or a container | Accepted |

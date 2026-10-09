@@ -1,0 +1,10 @@
+# Findings that gitleaks reports but that are not secrets. One fingerprint per
+# line (commit:file:rule:line); explain each group.
+
+# Deliberately invalid master keys of a configuration test (base64 of
+# "short-secret-key" and "not-a-key-at-all"), committed in 183dd45 and since
+# built at run time by the test.
+183dd45b2e45a6b98886d072ae4d9563c7827019:internal/config/security_test.go:generic-api-key:85
+183dd45b2e45a6b98886d072ae4d9563c7827019:internal/config/security_test.go:generic-api-key:87
+183dd45b2e45a6b98886d072ae4d9563c7827019:internal/config/security_test.go:generic-api-key:92
+183dd45b2e45a6b98886d072ae4d9563c7827019:internal/config/security_test.go:generic-api-key:95

@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Data model of the MVP (`migrations/00001_initial_schema.sql`), with
+  per-user isolation enforced by composite foreign keys.
+- `magpie migrate up|down|status`; the compose stack migrates before serving.
+- Typed queries (sqlc) and repositories for users, user keys, providers,
+  accounts, blob records and the audit log, tested on PostgreSQL 18 (88 %
+  coverage, 80 % enforced in CI).
+- Envelope encryption: a master key (`security.master_key` or a secret file)
+  wraps a root key per user, from which a data key and a fingerprint key are
+  derived. Account credentials are stored encrypted and bound to their row.
+- `magpie admin generate-key` and `magpie admin rotate-key`: master key rotation
+  without downtime or data re-encryption, recorded in the audit log.
+- Blob storage on local disk:
+  - atomic writes and per-user deduplication through keyed fingerprints;
+  - contents encrypted by default;
+  - reference counting and a purge after a grace period (`storage.*` settings).
+
+### Changed
+
+- `magpie serve` requires a master key.
+- `task gen` also generates the SQL layer, and `task gen:check` checks it.
+- The server version ignores `api-v*` tags.
+
 - API contract v0.1.0 (`api/openapi.yaml`, OpenAPI 3.1):
   - bearer and session-cookie security schemes, required unless an operation
     opts out;
