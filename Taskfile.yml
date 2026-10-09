@@ -96,7 +96,7 @@ tasks:
       - 'sed "s|^output: .*|output: {{.TMPDIR}}/oapi.gen.go|" {{.OAPI_CONFIG}} > {{.TMPDIR}}/oapi-codegen.yaml'
       - "{{.GOTOOL}} oapi-codegen -config {{.TMPDIR}}/oapi-codegen.yaml api/openapi.yaml"
       - cmp -s {{.TMPDIR}}/oapi.gen.go {{.OAPI_OUTPUT}} || (echo "{{.OAPI_OUTPUT}} is stale; run 'task gen'" >&2; exit 1)
-      - ./scripts/sqlc.sh diff || (echo "internal/store/postgres/gen is stale; run 'task gen'" >&2; exit 1)
+      - ./scripts/sqlc.sh diff || (echo "internal/store/postgres/gen is stale, or sqlc could not run (see above); run 'task gen'" >&2; exit 1)
     vars:
       TMPDIR:
         sh: mktemp -d
