@@ -39,7 +39,9 @@ jobs:
             echo "No Docker Hub credentials (fork pull request?): pulling anonymously."
             exit 0
           fi
-          printf '%s' "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
+          # Strip whitespace that pasting a secret may add.
+          username="$(printf '%s' "${DOCKERHUB_USERNAME}" | tr -d '[:space:]')"
+          printf '%s' "${DOCKERHUB_TOKEN}" | tr -d '[:space:]' | docker login --username "${username}" --password-stdin
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
@@ -70,7 +72,9 @@ jobs:
             echo "No Docker Hub credentials (fork pull request?): pulling anonymously."
             exit 0
           fi
-          printf '%s' "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
+          # Strip whitespace that pasting a secret may add.
+          username="$(printf '%s' "${DOCKERHUB_USERNAME}" | tr -d '[:space:]')"
+          printf '%s' "${DOCKERHUB_TOKEN}" | tr -d '[:space:]' | docker login --username "${username}" --password-stdin
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
@@ -117,7 +121,9 @@ jobs:
             echo "No Docker Hub credentials (fork pull request?): pulling anonymously."
             exit 0
           fi
-          printf '%s' "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
+          # Strip whitespace that pasting a secret may add.
+          username="$(printf '%s' "${DOCKERHUB_USERNAME}" | tr -d '[:space:]')"
+          printf '%s' "${DOCKERHUB_TOKEN}" | tr -d '[:space:]' | docker login --username "${username}" --password-stdin
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
