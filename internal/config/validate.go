@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,6 +42,12 @@ func (c Config) validate(found *problems, origins map[string]string) {
 		check("server.rate_limit.per_user.rate", checkPositive(c.Server.RateLimit.PerUser.Rate))
 		check("server.rate_limit.per_user.burst", checkAtLeastOne(c.Server.RateLimit.PerUser.Burst))
 	}
+	if !found.has("security.master_key_file") {
+		check("security.master_key", c.Security.checkMasterKey())
+	}
+	check("security.previous_master_keys", c.Security.checkPreviousMasterKeys())
+	check("storage.path", checkAbsolutePath(c.Storage.Path))
+	check("storage.purge_grace", checkNotNegative(c.Storage.PurgeGrace))
 	check("log.level", checkOneOf(c.Log.Level, logLevels))
 	check("log.format", checkOneOf(c.Log.Format, logFormats))
 	check("database.url", checkPostgresURL(c.Database.URL.Reveal()))
@@ -153,4 +160,11 @@ func redactURL(raw string) string {
 	}
 	u.RawQuery = query.Encode()
 	return u.Redacted()
+}
+
+func checkAbsolutePath(p string) string {
+	if !filepath.IsAbs(p) {
+		return fmt.Sprintf("must be an absolute path, got %q", p)
+	}
+	return ""
 }

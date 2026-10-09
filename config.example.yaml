@@ -68,3 +68,27 @@ database:
   # It contains a password: prefer the MAGPIE_DATABASE__URL environment variable
   # over this file, and never commit a real value.
   url: "postgres://magpie:change-me@localhost:5432/magpie?sslmode=disable"
+
+security:
+  # Server master key: 32 random bytes, base64. It wraps every user's encryption
+  # keys, so the account credentials and blobs it protects are lost without it:
+  # back it up outside the server. Generate one with `magpie admin generate-key`.
+  # Required by `magpie serve` and `magpie admin rotate-key`. Prefer the
+  # MAGPIE_SECURITY__MASTER_KEY environment variable, or a secret file below,
+  # over writing the key in this file.
+  master_key: ""
+  # Read the master key from this file instead (e.g. a Docker secret,
+  # /run/secrets/master_key). Set master_key or master_key_file, not both.
+  master_key_file: ""
+  # Former master keys, kept only during a rotation: set the new key above, move
+  # the old one here, run `magpie admin rotate-key`, then remove it.
+  # Environment: comma-separated.
+  previous_master_keys: []
+
+storage:
+  # Directory of the blob store: raw messages, attachments, documents.
+  path: /var/lib/magpie/blobs
+  # Encrypt blob contents with their owner's key.
+  encrypt_blobs: true
+  # How long an unreferenced blob is kept before the purge removes it.
+  purge_grace: 1h
