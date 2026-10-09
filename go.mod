@@ -11,7 +11,7 @@ require (
 	github.com/knadh/koanf/parsers/yaml v1.1.1
 	github.com/knadh/koanf/providers/confmap v1.0.1
 	github.com/knadh/koanf/providers/rawbytes v1.0.1
-	github.com/knadh/koanf/v2 v2.3.7
+	github.com/knadh/koanf/v2 v2.3.8
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/rs/cors v1.11.1
 	github.com/spf13/cobra v1.10.2
