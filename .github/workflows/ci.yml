@@ -55,6 +55,8 @@ jobs:
       - name: Install Task
         run: go install "github.com/go-task/task/v3/cmd/task@v${TASK_VERSION}"
       - run: task test:integration
+      - name: Repositories coverage (minimum 80 %)
+        run: task test:coverage
 
   audit:
     name: Vulnerabilities and secrets

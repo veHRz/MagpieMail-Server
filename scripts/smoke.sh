@@ -21,6 +21,13 @@ export MAGPIEMAIL_IMAGE="${IMAGE}"
 export MAGPIEMAIL_HTTP_PORT="${SMOKE_HTTP_PORT:-18080}"
 MAGPIEMAIL_DB_PASSWORD="$(openssl rand -hex 16)"
 export MAGPIEMAIL_DB_PASSWORD
+# A throwaway master key, in a private directory; the file itself must be
+# readable by the container's non-root user.
+secrets_dir="$(mktemp -d "${ROOT_DIR}/deploy/.smoke-secrets.XXXXXX")" # a path the Docker daemon can see
+chmod 700 "${secrets_dir}"
+openssl rand -base64 32 >"${secrets_dir}/master.key"
+chmod 444 "${secrets_dir}/master.key"
+export MAGPIEMAIL_MASTER_KEY_FILE="${secrets_dir}/master.key"
 compose() { docker compose -p "${PROJECT}" -f "${ROOT_DIR}/deploy/docker-compose.yml" "$@"; }
 
 pass() { printf 'PASS  %s\n' "$*"; }
@@ -48,9 +55,12 @@ pass "invalid configuration exits with code ${code}: $(printf '%s' "${output}" |
 
 # --- Stack ------------------------------------------------------------------
 
-cleanup() { compose down --volumes --remove-orphans >/dev/null 2>&1 || true; }
+cleanup() {
+  compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  rm -rf "${secrets_dir}"
+}
 trap cleanup EXIT
-cleanup # start from an empty database volume
+compose down --volumes --remove-orphans >/dev/null 2>&1 || true # start from an empty database volume
 
 # Image downloads depend on the network, not on the server: do them before timing.
 compose pull --quiet postgres >/dev/null 2>&1 || fail "could not pull the PostgreSQL image"

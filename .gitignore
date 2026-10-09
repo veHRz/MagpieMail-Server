@@ -6,6 +6,8 @@
 # Local configuration and secrets
 /config.yaml
 /deploy/.env
+/deploy/secrets/
+/deploy/.smoke-secrets.*/
 *.local.yaml
 
 # Test and coverage artefacts
