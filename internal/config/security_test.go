@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -76,23 +77,26 @@ func TestKeyring_RequiresAMasterKey(t *testing.T) {
 func TestLoad_InvalidSecuritySettingsNeverRevealKeys(t *testing.T) {
 	dbURL := "MAGPIE_DATABASE__URL=" + validDBURL
 	missing := filepath.Join(t.TempDir(), "absent")
+	// Well-formed base64 of the wrong length: valid-looking but invalid keys.
+	shortKey := base64.StdEncoding.EncodeToString([]byte("short-secret-key"))
+	notAKey := base64.StdEncoding.EncodeToString([]byte("not-a-key-at-all"))
 	tests := map[string]struct {
 		environ  []string
 		contains []string
 		secret   string
 	}{
 		"malformed master key": {
-			environ:  []string{dbURL, "MAGPIE_SECURITY__MASTER_KEY=c2hvcnQtc2VjcmV0LWtleQ=="},
+			environ:  []string{dbURL, "MAGPIE_SECURITY__MASTER_KEY=" + shortKey},
 			contains: []string{"security.master_key", "base64"},
-			secret:   "c2hvcnQtc2VjcmV0LWtleQ==",
+			secret:   shortKey,
 		},
 		"malformed previous key": {
 			environ: []string{
 				dbURL, "MAGPIE_SECURITY__MASTER_KEY=" + envelope.GenerateKey(),
-				"MAGPIE_SECURITY__PREVIOUS_MASTER_KEYS=bm90LWEta2V5LWF0LWFsbA==",
+				"MAGPIE_SECURITY__PREVIOUS_MASTER_KEYS=" + notAKey,
 			},
 			contains: []string{"security.previous_master_keys"},
-			secret:   "bm90LWEta2V5LWF0LWFsbA==",
+			secret:   notAKey,
 		},
 		"both key and key file": {
 			environ: []string{
