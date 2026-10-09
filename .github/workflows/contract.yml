@@ -21,6 +21,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Authenticated pulls: anonymous ones share the runners' Docker Hub quota.
+      - name: Log in to Docker Hub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [[ -z "${DOCKERHUB_TOKEN}" ]]; then
+            echo "No Docker Hub credentials (fork pull request?): pulling anonymously."
+            exit 0
+          fi
+          printf '%s' "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
       - name: Check that the tag matches the contract version
         run: |
           version="$(scripts/contract-version.sh)"
