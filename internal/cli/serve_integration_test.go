@@ -19,7 +19,7 @@ import (
 func TestIntegration_ReadinessFollowsTheDatabase(t *testing.T) {
 	ctr, url := pgtest.Start(t)
 	addr := freeAddr(t)
-	env := []string{"MAGPIE_DATABASE__URL=" + url, "MAGPIE_SERVER__LISTEN=" + addr}
+	env := []string{"MAGPIE_DATABASE__URL=" + url, masterKeyEnv(), "MAGPIE_SERVER__LISTEN=" + addr}
 
 	ctx, stop := context.WithCancel(t.Context())
 	results := make(chan result, 1)
