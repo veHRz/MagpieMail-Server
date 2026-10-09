@@ -7,8 +7,8 @@ recorded here.
 | Phase | Name | Depends on | Status | Branch |
 | --- | --- | --- | --- | --- |
 | S0 | Repository foundations | — | Done ([PR #1](https://github.com/veHRz/MagpieMail-Server/pull/1)) | `phase/S00-foundations` |
-| S1 | API contract and HTTP skeleton | S0 | Done, in review ([PR #5](https://github.com/veHRz/MagpieMail-Server/pull/5)) | `phase/S01-api-contract` |
-| S2 | Data model and storage | S0 | Not started | |
+| S1 | API contract and HTTP skeleton | S0 | Done ([PR #5](https://github.com/veHRz/MagpieMail-Server/pull/5)), contract [api-v0.1.0](https://github.com/veHRz/MagpieMail-Server/releases/tag/api-v0.1.0) | `phase/S01-api-contract` |
+| S2 | Data model and storage | S0 | In progress | `phase/S02-data-storage` |
 | S3 | Authentication and multi-user | S1, S2 | Not started | |
 | S4 | Administration and policies | S3 | Not started | |
 | S5 | Accounts and providers | S4 | Not started | |
@@ -212,7 +212,10 @@ through a common chain (errors, limits, security) ready to receive the domains.
 - Reusable publication: `task contract:release` and `.github/workflows/contract.yml`.
 - ADRs 0023 to 0028.
 
-### Remaining after merge
+### Publication
 
-- Tag `api-v0.1.0`: created on `main` after this phase is merged
-  (`task contract:release`). The tag triggers the release workflow (ADR 0027).
+- [Release api-v0.1.0](https://github.com/veHRz/MagpieMail-Server/releases/tag/api-v0.1.0),
+  published by `task contract:release` on `main` after the merge. Its 4 assets
+  were downloaded and checked: `sha256sum -c SHA256SUMS` OK, `VERSION` is
+  `0.1.0`, `openapi.yaml` is identical to a local bundle, and the HTML reference
+  loads no external resource.
