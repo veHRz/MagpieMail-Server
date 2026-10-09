@@ -8,7 +8,7 @@ recorded here.
 | --- | --- | --- | --- | --- |
 | S0 | Repository foundations | — | Done ([PR #1](https://github.com/veHRz/MagpieMail-Server/pull/1)) | `phase/S00-foundations` |
 | S1 | API contract and HTTP skeleton | S0 | Done ([PR #5](https://github.com/veHRz/MagpieMail-Server/pull/5)), contract [api-v0.1.0](https://github.com/veHRz/MagpieMail-Server/releases/tag/api-v0.1.0) | `phase/S01-api-contract` |
-| S2 | Data model and storage | S0 | In progress | `phase/S02-data-storage` |
+| S2 | Data model and storage | S0 | Done, in review ([PR #8](https://github.com/veHRz/MagpieMail-Server/pull/8)) | `phase/S02-data-storage` |
 | S3 | Authentication and multi-user | S1, S2 | Not started | |
 | S4 | Administration and policies | S3 | Not started | |
 | S5 | Accounts and providers | S4 | Not started | |
@@ -281,6 +281,18 @@ and secrets are encrypted at rest; all of it tested on a real PostgreSQL.
     migration included;
   - the server reads its master key from a Docker secret file.
 - A fresh `blobs` volume is owned by `65532:65532`.
+
+- CI: [run 37994909038](https://github.com/veHRz/MagpieMail-Server/actions/runs/37994909038)
+  of PR #8 is green on all four jobs:
+  - `0 issues.`, `house rules: all 9 rules fire on the broken fixture`,
+    `go test -race ./...`;
+  - `repositories coverage: 88.3 % (minimum 80 %)`;
+  - `/readyz answered 200 3650 ms`, and the published port answers;
+  - `No vulnerabilities found.`, `no leaks found`.
+- The first runs failed on Docker Hub: the anonymous pull quota was exhausted,
+  then a Docker Hub partial outage. CI now logs in to Docker Hub with repository
+  secrets (`Login Succeeded` in the 3 jobs that pull images) and falls back to
+  anonymous pulls when they are absent.
 
 ### Deliverables
 
