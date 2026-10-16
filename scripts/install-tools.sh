@@ -5,7 +5,7 @@
 set -euo pipefail
 
 # renovate: datasource=github-releases depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION="2.14.0"
+GOLANGCI_LINT_VERSION="2.15.0"
 # renovate: datasource=github-releases depName=gitleaks/gitleaks
 GITLEAKS_VERSION="8.30.1"
 
