@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     && mkdir -p /out/var/lib/magpie/blobs
 
 # Static, shell-less runtime image. "nonroot" is uid/gid 65532.
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="MagpieMail server" \
