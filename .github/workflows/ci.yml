@@ -42,7 +42,7 @@ jobs:
           # Strip whitespace that pasting a secret may add.
           username="$(printf '%s' "${DOCKERHUB_USERNAME}" | tr -d '[:space:]')"
           printf '%s' "${DOCKERHUB_TOKEN}" | tr -d '[:space:]' | docker login --username "${username}" --password-stdin
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
           cache-dependency-path: |
@@ -75,7 +75,7 @@ jobs:
           # Strip whitespace that pasting a secret may add.
           username="$(printf '%s' "${DOCKERHUB_USERNAME}" | tr -d '[:space:]')"
           printf '%s' "${DOCKERHUB_TOKEN}" | tr -d '[:space:]' | docker login --username "${username}" --password-stdin
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       - name: Install Task
@@ -93,7 +93,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0 # gitleaks scans the whole history
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
           cache-dependency-path: |
@@ -124,7 +124,7 @@ jobs:
           # Strip whitespace that pasting a secret may add.
           username="$(printf '%s' "${DOCKERHUB_USERNAME}" | tr -d '[:space:]')"
           printf '%s' "${DOCKERHUB_TOKEN}" | tr -d '[:space:]' | docker login --username "${username}" --password-stdin
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       - name: Install Task
